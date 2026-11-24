@@ -14,5 +14,16 @@ export const createLeadSchema = z.object({
     z.string().trim().email("Enter a valid email address").max(255).optional(),
   ),
   company: optionalText(150),
+  description: optionalText(5000),
   sourceId: z.preprocess(blankToUndefined, z.uuid().optional()),
+  packageId: z.preprocess(blankToUndefined, z.uuid().optional()),
+  budget: z.preprocess(
+    blankToUndefined,
+    z.coerce.number().int().min(0).max(2_147_483_647).optional(),
+  ),
+  priority: z.preprocess(
+    blankToUndefined,
+    z.enum(["LOW", "MEDIUM", "HIGH", "HOT"]).default("MEDIUM"),
+  ),
+  nextFollowUpAt: optionalText(40),
 });
