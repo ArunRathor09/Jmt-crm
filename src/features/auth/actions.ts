@@ -24,7 +24,12 @@ export async function loginAction(
   const [user] = await db
     .select()
     .from(users)
-    .where(or(eq(users.email, identifier), eq(users.username, identifier)))
+    .where(
+      or(
+        sql`lower(${users.email}) = ${identifier}`,
+        sql`lower(${users.username}) = ${identifier}`,
+      ),
+    )
     .limit(1);
 
   if (!user || !user.active || user.deletedAt) {

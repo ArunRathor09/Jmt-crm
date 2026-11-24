@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { hash } from "@node-rs/argon2";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { accountsSecurity, leadSources, packages, users } from "./schema";
 
 async function seed() {
@@ -16,6 +16,12 @@ async function seed() {
       "Set SEED_SUPER_ADMIN_EMAIL, SEED_SUPER_ADMIN_USERNAME, and SEED_SUPER_ADMIN_PASSWORD",
     );
   }
+  if (password.length < 14) {
+    throw new Error("SEED_SUPER_ADMIN_PASSWORD must be at least 14 characters");
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUsername = username.trim().toLowerCase();
 
   const db = drizzle(neon(databaseUrl));
   const passwordHash = await hash(password, {
@@ -24,33 +30,41 @@ async function seed() {
     parallelism: 1,
   });
 
-  await db.insert(users).values({
-    email,
-    username,
-    passwordHash,
-    role: "SUPER_ADMIN",
-    fullName: "JMT Super Admin",
-    mustChangePassword: false,
-    twoFactorEnabled: false,
-  }).onConflictDoNothing();
+  await db
+    .insert(users)
+    .values({
+      email: normalizedEmail,
+      username: normalizedUsername,
+      passwordHash,
+      role: "SUPER_ADMIN",
+      fullName: "JMT Super Admin",
+      mustChangePassword: false,
+      twoFactorEnabled: false,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: { passwordHash, updatedAt: new Date() },
+      setWhere: eq(users.role, "SUPER_ADMIN"),
+    });
 
   const [superAdmin] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, role: users.role })
     .from(users)
-    .where(eq(users.email, email))
+    .where(eq(users.email, normalizedEmail))
     .limit(1);
-  if (superAdmin) {
-    await db
-      .update(users)
-      .set({ mustChangePassword: false, updatedAt: new Date() })
-      .where(eq(users.id, superAdmin.id));
-    await db
-      .insert(accountsSecurity)
-      .values({ userId: superAdmin.id })
-      .onConflictDoNothing();
+  if (!superAdmin || superAdmin.role !== "SUPER_ADMIN") {
+    throw new Error("SEED_SUPER_ADMIN_EMAIL must belong to a super-admin account");
   }
+  await db
+    .update(users)
+    .set({ mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(users.id, superAdmin.id));
+  await db
+    .insert(accountsSecurity)
+    .values({ userId: superAdmin.id })
+    .onConflictDoNothing();
 
-  await db.insert(leadSources).values([
+  const defaultLeadSources = [
     { name: "Website" },
     { name: "Facebook" },
     { name: "Instagram" },
@@ -59,17 +73,33 @@ async function seed() {
     { name: "Walk-in" },
     { name: "Cold Call" },
     { name: "Other" },
-  ]).onConflictDoNothing();
+  ];
+  const existingLeadSources = await db
+    .select({ name: leadSources.name })
+    .from(leadSources)
+    .where(inArray(leadSources.name, defaultLeadSources.map((source) => source.name)));
+  const existingLeadSourceNames = new Set(existingLeadSources.map((source) => source.name));
+  const missingLeadSources = defaultLeadSources.filter(
+    (source) => !existingLeadSourceNames.has(source.name),
+  );
+  if (missingLeadSources.length > 0) {
+    await db.insert(leadSources).values(missingLeadSources);
+  }
 
-  await db.insert(packages).values([
-    {
+  const [starterPackage] = await db
+    .select({ id: packages.id })
+    .from(packages)
+    .where(eq(packages.code, "STARTER"))
+    .limit(1);
+  if (!starterPackage) {
+    await db.insert(packages).values({
       name: "Starter",
       code: "STARTER",
       description: "Starter package",
       price: 0,
       status: "ACTIVE",
-    },
-  ]).onConflictDoNothing();
+    });
+  }
 
   console.log("Database seed completed");
 }

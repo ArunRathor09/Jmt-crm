@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/src/db";
 import { sessions, users } from "@/src/db/schema";
 
@@ -47,7 +47,6 @@ export async function getSession() {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const now = new Date();
   const [row] = await db
     .select({
       sessionId: sessions.id,
@@ -68,22 +67,22 @@ export async function getSession() {
       and(
         eq(sessions.tokenHash, hashSessionToken(token)),
         isNull(sessions.revokedAt),
-        gt(sessions.expiresAt, now),
-        gt(sessions.idleExpiresAt, now),
+        gt(sessions.expiresAt, sql`now()`),
+        gt(sessions.idleExpiresAt, sql`now()`),
         eq(users.active, true),
         isNull(users.deletedAt),
       ),
     )
     .limit(1);
 
-  if (!row) {
-    cookieStore.delete(SESSION_COOKIE);
-    return null;
-  }
+  if (!row) return null;
 
   await db
     .update(sessions)
-    .set({ idleExpiresAt: new Date(now.getTime() + IDLE_TIMEOUT_MS), updatedAt: now })
+    .set({
+      idleExpiresAt: sql`now() + (${IDLE_TIMEOUT_MS} * interval '1 millisecond')`,
+      updatedAt: sql`now()`,
+    })
     .where(eq(sessions.id, row.sessionId));
 
   return row;

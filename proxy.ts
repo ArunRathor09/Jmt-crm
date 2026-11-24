@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = protectedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  ) || pathname === "/";
   if (!isProtected) return NextResponse.next();
 
   if (!request.cookies.get(SESSION_COOKIE)?.value) {
@@ -34,5 +34,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/leads/:path*", "/followups/:path*", "/customers/:path*", "/packages/:path*", "/tasks/:path*", "/reports/:path*", "/notifications/:path*", "/settings/:path*", "/users/:path*", "/audit-logs/:path*", "/change-password/:path*", "/2fa/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/leads/:path*", "/followups/:path*", "/customers/:path*", "/packages/:path*", "/tasks/:path*", "/reports/:path*", "/notifications/:path*", "/settings/:path*", "/users/:path*", "/audit-logs/:path*", "/change-password/:path*", "/2fa/:path*"],
 };
