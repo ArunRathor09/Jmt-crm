@@ -172,6 +172,7 @@ export const leads = pgTable(
     email: varchar("email", { length: 255 }),
     company: varchar("company", { length: 150 }),
     description: text("description"),
+    sourceData: jsonb("source_data").$type<Record<string, string>>(),
     market: varchar("market", { length: 20 }).default("DOMESTIC").notNull(),
     city: varchar("city", { length: 100 }),
     state: varchar("state", { length: 100 }),

@@ -1,4 +1,8 @@
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, delimiter = ","): string[][] {
+  if (delimiter.length !== 1) {
+    throw new Error("CSV delimiter must be a single character.");
+  }
+
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -21,7 +25,7 @@ export function parseCsv(text: string): string[][] {
 
     if (character === '"' && field.length === 0) {
       quoted = true;
-    } else if (character === ",") {
+    } else if (character === delimiter) {
       row.push(field);
       field = "";
     } else if (character === "\n" || character === "\r") {

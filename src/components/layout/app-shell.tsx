@@ -14,6 +14,7 @@ import {
   Settings,
   Tags,
   Users,
+  UserPlus,
   UsersRound,
   X,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { can, type AuthRole } from "@/src/lib/auth/rbac";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/leads/add", label: "Add Leads", icon: UserPlus },
   { href: "/followups", label: "Follow-ups", icon: CheckSquare2 },
   { href: "/customers", label: "Customers", icon: UsersRound },
   { href: "/packages", label: "Packages", icon: BriefcaseBusiness },
@@ -50,9 +52,12 @@ export function AppShell({
   const [search, setSearch] = useState("");
   const [leadsOpen, setLeadsOpen] = useState(pathname.startsWith("/leads"));
   const visibleNavItems = navItems.filter(
-    (item) => item.href !== "/packages" || can(role, "packages.manage"),
+    (item) =>
+      (item.href !== "/packages" || can(role, "packages.manage")) &&
+      (item.href !== "/leads/add" || can(role, "leads.create")),
   );
-  const selectedMarket = searchParams.get("market") ?? "DOMESTIC";
+  const selectedMarket =
+    searchParams.get("market") === "INTERNATIONAL" ? "INTERNATIONAL" : "DOMESTIC";
 
   useEffect(() => {
     const openPalette = () => setPaletteOpen(true);
@@ -116,7 +121,10 @@ export function AppShell({
 
         <nav className="flex-1 space-y-1 px-3 py-4">
           {visibleNavItems.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active =
+              item.href === "/leads"
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
             if (item.href === "/leads") {
               return (

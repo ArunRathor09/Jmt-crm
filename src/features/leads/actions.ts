@@ -8,7 +8,12 @@ import { followups, leadSources, leads, packages } from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 import { normalizeCsvHeader, parseCsv } from "./csv";
-import { createLeadSchema, leadMarketSchema } from "./schemas";
+import {
+  createLeadSchema,
+  leadMarketSchema,
+  leadStatusSchema,
+} from "./schemas";
+import { readCsvSourceData, readManualSourceData } from "./source-fields";
 
 export type LeadActionState = {
   error: string | null;
@@ -41,6 +46,36 @@ function parseFollowUpDate(value?: string) {
     : `${value}${value.length === 16 ? ":00" : ""}+05:30`;
   const parsed = new Date(dateValue);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function cellAtAny(row: string[], headerIndexes: Map<string, number>, names: string[]) {
+  for (const name of names) {
+    const value = cellAt(row, headerIndexes, name);
+    if (value) return value;
+  }
+  return "";
+}
+
+function parseLeadStatus(value: string) {
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const aliases: Record<string, string> = {
+    OPEN: "NEW",
+    NEW_LEAD: "NEW",
+    IN_PROGRESS: "CONTACTED",
+    IN_PROGRESS_CONTACT: "CONTACTED",
+    CONVERTED: "WON",
+    CLOSED_WON: "WON",
+    CLOSED_LOST: "LOST",
+    SPAM: "JUNK",
+  };
+  const candidate = aliases[normalized] ?? normalized;
+  const parsed = leadStatusSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : "NEW";
+}
+
+function parseBudget(value: string) {
+  const normalized = value.trim().replace(/^(?:₹|INR)\s*/i, "").replace(/,/g, "");
+  return /^\d+$/.test(normalized) ? normalized : "";
 }
 
 async function validateLeadReferences(draft: LeadDraft) {
@@ -96,13 +131,17 @@ async function insertLead(draft: LeadDraft, userId: string) {
     .values({
       name: draft.name,
       phone: draft.phone,
+      alternatePhone: draft.alternatePhone,
       market: draft.market,
       email: draft.email,
       company: draft.company,
+      city: draft.city,
       description: draft.description,
+      sourceData: Object.keys(draft.sourceData).length ? draft.sourceData : null,
       sourceId: references.sourceId,
       packageId: references.packageId,
       budget: draft.budget ?? references.packagePrice,
+      status: draft.status,
       priority: draft.priority,
       createdBy: userId,
     })
@@ -142,10 +181,14 @@ export async function createLeadAction(
   const parsed = createLeadSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone"),
+    alternatePhone: formData.get("alternatePhone"),
     market: formData.get("market"),
     email: formData.get("email"),
     company: formData.get("company"),
+    city: formData.get("city"),
     description: formData.get("description"),
+    sourceData: readManualSourceData(formData),
+    status: formData.get("status"),
     sourceId: formData.get("sourceId"),
     packageId: formData.get("packageId"),
     budget: formData.get("budget"),
@@ -192,6 +235,7 @@ export async function importLeadsAction(
   }
 
   const file = formData.get("file");
+  const defaultPackageId = formData.get("defaultPackageId");
   const parsedMarket = leadMarketSchema.safeParse(formData.get("market"));
   if (!parsedMarket.success) {
     return { ...initialImportState, error: "Choose Domestic or International leads." };
@@ -205,8 +249,12 @@ export async function importLeadsAction(
   }
 
   let rows: string[][];
+  let csvText: string;
   try {
-    rows = parseCsv((await file.text()).replace(/^\uFEFF/, ""));
+    csvText = (await file.text()).replace(/^\uFEFF/, "");
+    const header = csvText.split(/\r?\n/, 1)[0] ?? "";
+    const delimiter = header.includes("\t") && !header.includes(",") ? "\t" : ",";
+    rows = parseCsv(csvText, delimiter);
   } catch (error) {
     return {
       ...initialImportState,
@@ -226,10 +274,14 @@ export async function importLeadsAction(
 
   const headers = nonEmptyRecords[0].row.map(normalizeCsvHeader);
   const headerIndexes = new Map(headers.map((header, index) => [header, index]));
-  if (!headerIndexes.has("name") || !headerIndexes.has("phone")) {
+  const nameColumn = ["name", "fullname"].find((name) => headerIndexes.has(name));
+  const phoneColumn = ["phone", "phonenumber", "mobilenumber", "whatsappnumber"].find(
+    (name) => headerIndexes.has(name),
+  );
+  if (!nameColumn || !phoneColumn) {
     return {
       ...initialImportState,
-      error: "The CSV must include Name and Phone columns.",
+      error: "The file must include Name/Full Name and Phone/Phone Number columns.",
     };
   }
 
@@ -256,6 +308,16 @@ export async function importLeadsAction(
       availablePackage,
     ]),
   );
+  const defaultPackage =
+    typeof defaultPackageId === "string"
+      ? availablePackages.find((availablePackage) => availablePackage.id === defaultPackageId)
+      : undefined;
+  if (defaultPackageId && !defaultPackage) {
+    return {
+      ...initialImportState,
+      error: "Choose an active package from the selected category.",
+    };
+  }
   const packagePriceById = new Map(
     availablePackages.map((availablePackage) => [
       availablePackage.id,
@@ -275,7 +337,9 @@ export async function importLeadsAction(
   for (const { row, rowNumber } of nonEmptyRecords.slice(1)) {
     const packageName = cellAt(row, headerIndexes, "package").toLowerCase();
     const sourceName = cellAt(row, headerIndexes, "source").toLowerCase();
-    const selectedPackage = packageName ? packageByName.get(packageName) : undefined;
+    const selectedPackage = packageName
+      ? packageByName.get(packageName)
+      : defaultPackage;
     const source = sourceName ? sourceByName.get(sourceName) : undefined;
 
     if (packageName && !selectedPackage) {
@@ -288,17 +352,39 @@ export async function importLeadsAction(
     }
 
     const priority = cellAt(row, headerIndexes, "priority").toUpperCase() || "MEDIUM";
+    const sourceData = readCsvSourceData(nonEmptyRecords[0].row, row);
+    const budget = parseBudget(
+      cellAtAny(row, headerIndexes, [
+        "price",
+        "budget",
+        "whatisyourapproximatebudgetperperson",
+      ]),
+    );
     const parsed = createLeadSchema.safeParse({
-      name: cellAt(row, headerIndexes, "name"),
-      phone: cellAt(row, headerIndexes, "phone"),
+      name: cellAtAny(row, headerIndexes, ["name", "fullname"]),
+      phone: cellAtAny(row, headerIndexes, [
+        "phone",
+        "phonenumber",
+        "mobilenumber",
+        "whatsappnumber",
+      ]),
+      alternatePhone: cellAtAny(row, headerIndexes, [
+        "alternatephone",
+        "whatsappnumber",
+      ]),
       market,
-      email: cellAt(row, headerIndexes, "email"),
+      email: cellAtAny(row, headerIndexes, ["email", "emailaddress"]),
       company: cellAt(row, headerIndexes, "company"),
+      city: cellAt(row, headerIndexes, "city"),
       description: cellAt(row, headerIndexes, "description"),
+      sourceData,
+      status: parseLeadStatus(cellAt(row, headerIndexes, "leadstatus")),
       sourceId: source?.id,
       packageId: selectedPackage?.id,
-      budget: cellAt(row, headerIndexes, "price"),
-      priority,
+      budget,
+      priority: ["LOW", "MEDIUM", "HIGH", "HOT"].includes(priority)
+        ? priority
+        : "MEDIUM",
       nextFollowUpAt: cellAt(row, headerIndexes, "nextfollowup"),
     });
     if (!parsed.success) {
@@ -338,13 +424,17 @@ export async function importLeadsAction(
       validRows.map(({ draft }) => ({
         name: draft.name,
         phone: draft.phone,
+        alternatePhone: draft.alternatePhone,
         market: draft.market,
         email: draft.email,
         company: draft.company,
+        city: draft.city,
         description: draft.description,
+        sourceData: Object.keys(draft.sourceData).length ? draft.sourceData : null,
         sourceId: draft.sourceId,
         packageId: draft.packageId,
         budget: draft.budget ?? packagePriceById.get(draft.packageId ?? "") ?? null,
+        status: draft.status,
         priority: draft.priority,
         createdBy: session.userId,
       })),

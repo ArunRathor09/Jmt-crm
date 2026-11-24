@@ -1,2 +1,2 @@
-Name,Phone,Email,Company,Description,Package,Price,Source,Priority,Next Follow-up
-Example Lead,+919876543210,example@example.com,Example Company,Interested in the annual plan,Starter,25000,Website,HIGH,2026-12-01T10:30:00+05:30
+full_name,phone_number,whatsapp_number,email,city,lead_status,Priority,Remark,package,price,source,next_followup
+Example Lead,+919876543210,+919876543210,example@example.com,Mumbai,NEW,HIGH,Interested in the package,,25000,Website,2026-12-01T10:30:00+05:30
