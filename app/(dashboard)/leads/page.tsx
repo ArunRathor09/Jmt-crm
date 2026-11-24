@@ -1,10 +1,11 @@
 import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import { Clock3, Flame, MessageCircle, PhoneCall, Plus, Search, Upload, Users } from "lucide-react";
+import { Clock3, Eye, Flame, MessageCircle, PhoneCall, Plus, Search, Upload, Users } from "lucide-react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
 import { followups, leadSources, leadStatusEnum, leads, packages, priorityEnum } from "@/src/db/schema";
+import { formatCurrency, formatDate, getWhatsAppUrl } from "@/src/features/leads/format";
 import { leadMarketSchema } from "@/src/features/leads/schemas";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
@@ -22,33 +23,6 @@ type PipelineStats = {
   hotLeads: number;
   overdueFollowups: number;
 };
-
-function formatCurrency(value: number | null) {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDate(value: Date | null) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Kolkata",
-  }).format(value);
-}
-
-function getWhatsAppUrl(phone: string) {
-  const rawDigits = phone.replace(/\D/g, "");
-  const digits = rawDigits.startsWith("00") ? rawDigits.slice(2) : rawDigits;
-  const localDigits =
-    digits.length === 11 && digits.startsWith("0") ? digits.slice(1) : digits;
-  const normalized = localDigits.length === 10 ? `91${localDigits}` : localDigits;
-  return normalized ? `https://wa.me/${normalized}` : null;
-}
 
 export default async function LeadsPage({
   searchParams,
@@ -328,7 +302,7 @@ export default async function LeadsPage({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1360px] text-left text-sm">
+            <table className="w-full min-w-[1450px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Lead</th>
@@ -339,6 +313,7 @@ export default async function LeadsPage({
                   <th className="px-5 py-3 font-medium">Priority</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Source</th>
+                  <th className="px-5 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -421,10 +396,20 @@ export default async function LeadsPage({
                           </span>
                         </td>
                         <td className="px-5 py-4 text-muted-foreground">{lead.sourceName ?? "—"}</td>
+                        <td className="px-5 py-4">
+                          <Link
+                            href={`/leads/${lead.id}`}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border bg-card px-3 text-sm font-medium text-primary transition-colors hover:bg-accent"
+                            aria-label={`View ${lead.name}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Link>
+                        </td>
                       </tr>
                       {sourceEntries.length > 0 && (
                         <tr className="bg-muted/10">
-                          <td colSpan={8} className="px-5 py-3">
+                          <td colSpan={9} className="px-5 py-3">
                             <details>
                               <summary className="cursor-pointer text-sm font-medium text-primary">
                                 View {sourceEntries.length} form details

@@ -15,7 +15,9 @@ export const leadStatusValues = [
 export const leadStatusSchema = z.enum(leadStatusValues);
 
 const blankToUndefined = (value: unknown) =>
-  typeof value === "string" && value.trim() === "" ? undefined : value;
+  value === null || (typeof value === "string" && value.trim() === "")
+    ? undefined
+    : value;
 
 const optionalText = (max: number) =>
   z.preprocess(blankToUndefined, z.string().trim().max(max).optional());

@@ -116,6 +116,10 @@ export function LeadCreateForm({
               <input name="name" required maxLength={150} className={fieldClassName} />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
+              Company / organization
+              <input name="company" maxLength={150} className={fieldClassName} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium">
               Calling number <span className="text-destructive">*</span>
               <input
                 name="phone"
