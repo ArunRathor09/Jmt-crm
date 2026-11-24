@@ -8,7 +8,7 @@ import { followups, leadSources, leads, packages } from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 import { normalizeCsvHeader, parseCsv } from "./csv";
-import { createLeadSchema } from "./schemas";
+import { createLeadSchema, leadMarketSchema } from "./schemas";
 
 export type LeadActionState = {
   error: string | null;
@@ -70,12 +70,15 @@ async function validateLeadReferences(draft: LeadDraft) {
       .where(
         and(
           eq(packages.id, packageId),
+          eq(packages.category, draft.market),
           eq(packages.status, "ACTIVE"),
           isNull(packages.deletedAt),
         ),
       )
       .limit(1);
-    if (!selectedPackage) return { error: "Choose an active package." as const };
+    if (!selectedPackage) {
+      return { error: "Choose an active package from this category." as const };
+    }
     packageId = selectedPackage.id;
     packagePrice = selectedPackage.price;
   }
@@ -93,6 +96,7 @@ async function insertLead(draft: LeadDraft, userId: string) {
     .values({
       name: draft.name,
       phone: draft.phone,
+      market: draft.market,
       email: draft.email,
       company: draft.company,
       description: draft.description,
@@ -138,6 +142,7 @@ export async function createLeadAction(
   const parsed = createLeadSchema.safeParse({
     name: formData.get("name"),
     phone: formData.get("phone"),
+    market: formData.get("market"),
     email: formData.get("email"),
     company: formData.get("company"),
     description: formData.get("description"),
@@ -187,6 +192,11 @@ export async function importLeadsAction(
   }
 
   const file = formData.get("file");
+  const parsedMarket = leadMarketSchema.safeParse(formData.get("market"));
+  if (!parsedMarket.success) {
+    return { ...initialImportState, error: "Choose Domestic or International leads." };
+  }
+  const market = parsedMarket.data;
   if (!(file instanceof File) || file.size === 0) {
     return { ...initialImportState, error: "Choose a CSV file to import." };
   }
@@ -234,6 +244,7 @@ export async function importLeadsAction(
       .where(
         and(
           eq(packages.status, "ACTIVE"),
+          eq(packages.category, market),
           isNull(packages.deletedAt),
         ),
       ),
@@ -280,6 +291,7 @@ export async function importLeadsAction(
     const parsed = createLeadSchema.safeParse({
       name: cellAt(row, headerIndexes, "name"),
       phone: cellAt(row, headerIndexes, "phone"),
+      market,
       email: cellAt(row, headerIndexes, "email"),
       company: cellAt(row, headerIndexes, "company"),
       description: cellAt(row, headerIndexes, "description"),
@@ -326,6 +338,7 @@ export async function importLeadsAction(
       validRows.map(({ draft }) => ({
         name: draft.name,
         phone: draft.phone,
+        market: draft.market,
         email: draft.email,
         company: draft.company,
         description: draft.description,

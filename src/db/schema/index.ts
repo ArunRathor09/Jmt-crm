@@ -172,6 +172,7 @@ export const leads = pgTable(
     email: varchar("email", { length: 255 }),
     company: varchar("company", { length: 150 }),
     description: text("description"),
+    market: varchar("market", { length: 20 }).default("DOMESTIC").notNull(),
     city: varchar("city", { length: 100 }),
     state: varchar("state", { length: 100 }),
     country: varchar("country", { length: 100 }),
@@ -190,7 +191,10 @@ export const leads = pgTable(
   },
   (table) => [
     index("leads_status_assigned_created_idx").on(table.status, table.assignedTo, table.createdAt),
-    index("leads_phone_idx").on(table.phone),
+    index("leads_market_created_idx")
+      .on(table.market, table.createdAt)
+      .where(sql`${table.deletedAt} is null`),
+    index("leads_active_created_idx").on(table.createdAt).where(sql`${table.deletedAt} is null`),
     uniqueIndex("leads_active_phone_unique").on(table.phone).where(sql`${table.deletedAt} is null`),
   ],
 );
@@ -235,6 +239,9 @@ export const followups = pgTable(
   },
   (table) => [
     index("followups_due_status_assigned_idx").on(table.dueAt, table.status, table.assignedTo),
+    index("followups_lead_status_due_idx")
+      .on(table.leadId, table.status, table.dueAt)
+      .where(sql`${table.deletedAt} is null`),
   ],
 );
 

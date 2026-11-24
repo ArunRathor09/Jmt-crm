@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
 import { followups, leadSources, leadStatusEnum, leads, packages } from "@/src/db/schema";
 import { LeadCreateForm } from "@/src/features/leads/lead-create-form";
 import { LeadImportForm } from "@/src/features/leads/lead-import-form";
+import { leadMarketSchema } from "@/src/features/leads/schemas";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
@@ -35,7 +36,7 @@ function formatDate(value: Date | null) {
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; market?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -43,10 +44,12 @@ export default async function LeadsPage({
 
   const params = await searchParams;
   const search = params.q?.trim().slice(0, 100) ?? "";
+  const parsedMarket = leadMarketSchema.safeParse(params.market);
+  const market = parsedMarket.success ? parsedMarket.data : "DOMESTIC";
   const selectedStatus = leadStatusEnum.enumValues.find(
     (status) => status === params.status,
   );
-  const conditions = [isNull(leads.deletedAt)];
+  const conditions = [isNull(leads.deletedAt), eq(leads.market, market)];
   if (search) {
     conditions.push(
       or(
@@ -88,7 +91,13 @@ export default async function LeadsPage({
     db
       .select({ id: packages.id, name: packages.name, price: packages.price })
       .from(packages)
-      .where(and(eq(packages.status, "ACTIVE"), isNull(packages.deletedAt)))
+      .where(
+        and(
+          eq(packages.category, market),
+          eq(packages.status, "ACTIVE"),
+          isNull(packages.deletedAt),
+        ),
+      )
       .orderBy(packages.name),
   ]);
 
@@ -97,7 +106,7 @@ export default async function LeadsPage({
     leadIds.length === 0
       ? []
       : await db
-          .select({
+          .selectDistinctOn([followups.leadId], {
             leadId: followups.leadId,
             dueAt: followups.dueAt,
           })
@@ -109,7 +118,7 @@ export default async function LeadsPage({
               isNull(followups.deletedAt),
             ),
           )
-          .orderBy(asc(followups.dueAt));
+          .orderBy(followups.leadId, followups.dueAt);
   const nextFollowUpByLead = new Map<string, Date>();
   for (const followup of upcomingFollowups) {
     if (followup.leadId && !nextFollowUpByLead.has(followup.leadId)) {
@@ -122,9 +131,20 @@ export default async function LeadsPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Manage and track prospects</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+            {market === "DOMESTIC" ? "Domestic" : "International"} leads
+          </h1>
         </div>
         <form action="/leads" className="flex gap-2">
+          <select
+            name="market"
+            defaultValue={market}
+            className="h-10 rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            aria-label="Lead category"
+          >
+            <option value="DOMESTIC">Domestic</option>
+            <option value="INTERNATIONAL">International</option>
+          </select>
           <input
             name="q"
             defaultValue={search}
@@ -151,8 +171,8 @@ export default async function LeadsPage({
 
       {can(session.role, "leads.create") && (
         <>
-          <LeadImportForm />
-          <LeadCreateForm sources={sources} packages={availablePackages} />
+          <LeadImportForm market={market} />
+          <LeadCreateForm market={market} sources={sources} packages={availablePackages} />
         </>
       )}
 

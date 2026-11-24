@@ -9,9 +9,11 @@ const fieldClassName =
   "h-10 w-full rounded-lg border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring";
 
 export function LeadCreateForm({
+  market,
   sources,
   packages,
 }: {
+  market: "DOMESTIC" | "INTERNATIONAL";
   sources: { id: string; name: string }[];
   packages: { id: string; name: string; price: number }[];
 }) {
@@ -19,7 +21,8 @@ export function LeadCreateForm({
 
   return (
     <form action={formAction} className="rounded-xl border bg-card p-5 shadow-sm">
-      <h2 className="font-semibold">Add a lead</h2>
+      <input type="hidden" name="market" value={market} />
+      <h2 className="font-semibold">Add a {market === "DOMESTIC" ? "domestic" : "international"} lead</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2 text-sm font-medium">
           Name <span className="text-destructive">*</span>

@@ -4,6 +4,7 @@ import {
   Bell,
   BriefcaseBusiness,
   CheckSquare2,
+  ChevronDown,
   ChevronLeft,
   CircleHelp,
   LayoutDashboard,
@@ -17,11 +18,12 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 import { logoutAction } from "@/src/features/auth/actions";
+import { can, type AuthRole } from "@/src/lib/auth/rbac";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,12 +35,24 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  role,
+}: {
+  children: React.ReactNode;
+  role: AuthRole;
+}) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [leadsOpen, setLeadsOpen] = useState(pathname.startsWith("/leads"));
+  const visibleNavItems = navItems.filter(
+    (item) => item.href !== "/packages" || can(role, "packages.manage"),
+  );
+  const selectedMarket = searchParams.get("market") ?? "DOMESTIC";
 
   useEffect(() => {
     const openPalette = () => setPaletteOpen(true);
@@ -101,9 +115,69 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
+            if (item.href === "/leads") {
+              return (
+                <div key={item.href}>
+                  <button
+                    type="button"
+                    aria-expanded={leadsOpen}
+                    onClick={() => {
+                      if (collapsed) {
+                        setCollapsed(false);
+                        setLeadsOpen(true);
+                      } else {
+                        setLeadsOpen((open) => !open);
+                      }
+                    }}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
+                      active
+                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    } ${collapsed ? "justify-center" : ""}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && (
+                      <>
+                        <span>{item.label}</span>
+                        <ChevronDown
+                          className={`ml-auto h-4 w-4 transition-transform ${leadsOpen ? "rotate-180" : ""}`}
+                        />
+                      </>
+                    )}
+                  </button>
+                  {leadsOpen && !collapsed && (
+                    <div className="ml-4 mt-1 space-y-1 border-l pl-3">
+                      {[
+                        { market: "DOMESTIC", label: "Domestic" },
+                        { market: "INTERNATIONAL", label: "International" },
+                      ].map((category) => {
+                        const selected =
+                          active && selectedMarket === category.market;
+                        return (
+                          <Link
+                            key={category.market}
+                            href={`/leads?market=${category.market}`}
+                            onClick={() => setMobileOpen(false)}
+                            aria-current={selected ? "page" : undefined}
+                            className={`flex h-9 items-center rounded-lg px-3 text-sm transition-colors ${
+                              selected
+                                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            }`}
+                          >
+                            {category.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
             return (
               <Link
                 key={item.href}
@@ -202,7 +276,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <kbd className="rounded border bg-muted px-2 py-1 text-[10px] text-muted-foreground">ESC</kbd>
             </div>
             <div className="max-h-80 p-2">
-              {navItems
+              {visibleNavItems
                 .filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
                 .map((item) => {
                   const Icon = item.icon;

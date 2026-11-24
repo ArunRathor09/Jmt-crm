@@ -10,7 +10,7 @@ const initialState: LeadImportState = {
   errors: [],
 };
 
-export function LeadImportForm() {
+export function LeadImportForm({ market }: { market: "DOMESTIC" | "INTERNATIONAL" }) {
   const [state, formAction, pending] = useActionState(importLeadsAction, initialState);
 
   return (
@@ -22,6 +22,7 @@ export function LeadImportForm() {
         </span>
       </summary>
       <form action={formAction} className="space-y-4 border-t px-5 py-4">
+        <input type="hidden" name="market" value={market} />
         <div className="flex flex-wrap items-center gap-3">
           <input
             type="file"
@@ -48,6 +49,7 @@ export function LeadImportForm() {
         <p className="text-xs text-muted-foreground">
           Required columns: Name, Phone. Optional columns: Email, Company, Description, Package,
           Price, Source, Priority, Next Follow-up. Package and source names must already exist.
+          Package names must belong to the selected {market.toLowerCase()} category.
         </p>
         {state.error && (
           <p role="alert" className="text-sm text-destructive">

@@ -8,5 +8,5 @@ export default async function DashboardLayout({
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
-  return <AppShell>{children}</AppShell>;
+  return <AppShell role={session.role}>{children}</AppShell>;
 }

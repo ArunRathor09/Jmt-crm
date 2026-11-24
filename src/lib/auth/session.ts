@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/src/db";
 import { sessions, users } from "@/src/db/schema";
@@ -42,13 +43,31 @@ export async function createSession(
   return token;
 }
 
-export async function getSession() {
+export const getSession = cache(async function getSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
   const [row] = await db
-    .select({
+    .update(sessions)
+    .set({
+      idleExpiresAt: sql`now() + (${IDLE_TIMEOUT_MS} * interval '1 millisecond')`,
+      updatedAt: sql`now()`,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(sessions.userId, users.id),
+        eq(sessions.tokenHash, hashSessionToken(token)),
+        isNull(sessions.revokedAt),
+        isNull(sessions.deletedAt),
+        gt(sessions.expiresAt, sql`now()`),
+        gt(sessions.idleExpiresAt, sql`now()`),
+        eq(users.active, true),
+        isNull(users.deletedAt),
+      ),
+    )
+    .returning({
       sessionId: sessions.id,
       userId: users.id,
       email: users.email,
@@ -60,33 +79,12 @@ export async function getSession() {
       twoFactorEnabled: users.twoFactorEnabled,
       idleExpiresAt: sessions.idleExpiresAt,
       expiresAt: sessions.expiresAt,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(
-      and(
-        eq(sessions.tokenHash, hashSessionToken(token)),
-        isNull(sessions.revokedAt),
-        gt(sessions.expiresAt, sql`now()`),
-        gt(sessions.idleExpiresAt, sql`now()`),
-        eq(users.active, true),
-        isNull(users.deletedAt),
-      ),
-    )
-    .limit(1);
+    });
 
   if (!row) return null;
 
-  await db
-    .update(sessions)
-    .set({
-      idleExpiresAt: sql`now() + (${IDLE_TIMEOUT_MS} * interval '1 millisecond')`,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(sessions.id, row.sessionId));
-
   return row;
-}
+});
 
 export async function revokeSession() {
   const cookieStore = await cookies();

@@ -15,6 +15,20 @@
       "when": 1795515675153,
       "tag": "0001_fantastic_jigsaw",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795517475914,
+      "tag": "0002_optimal_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795520197885,
+      "tag": "0003_far_wasp",
+      "breakpoints": true
     }
   ]
 }
