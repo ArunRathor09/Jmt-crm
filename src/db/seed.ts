@@ -1,7 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { hash } from "@node-rs/argon2";
-import { leadSources, packages, users } from "./schema";
+import { eq } from "drizzle-orm";
+import { accountsSecurity, leadSources, packages, users } from "./schema";
 
 async function seed() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -32,6 +33,22 @@ async function seed() {
     mustChangePassword: false,
     twoFactorEnabled: false,
   }).onConflictDoNothing();
+
+  const [superAdmin] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+  if (superAdmin) {
+    await db
+      .update(users)
+      .set({ mustChangePassword: false, updatedAt: new Date() })
+      .where(eq(users.id, superAdmin.id));
+    await db
+      .insert(accountsSecurity)
+      .values({ userId: superAdmin.id })
+      .onConflictDoNothing();
+  }
 
   await db.insert(leadSources).values([
     { name: "Website" },

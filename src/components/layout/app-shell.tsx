@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   CircleHelp,
   LayoutDashboard,
+  LogOut,
   Menu,
   Search,
   Settings,
@@ -20,6 +21,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
+import { logoutAction } from "@/src/features/auth/actions";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -122,6 +124,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="border-t p-3">
+          <button
+            type="button"
+            onClick={() => void logoutAction()}
+            className={`mb-1 hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive lg:flex ${
+              collapsed ? "justify-center" : ""
+            }`}
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && "Sign out"}
+          </button>
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
