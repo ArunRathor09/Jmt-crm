@@ -14,7 +14,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/src/db";
-import { followups, leadSources, leads, packages } from "@/src/db/schema";
+import {
+  followups,
+  leadQueries,
+  leadSources,
+  leads,
+  packages,
+  users,
+} from "@/src/db/schema";
 import { formatCurrency, formatDate, getWhatsAppUrl } from "@/src/features/leads/format";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
@@ -64,6 +71,8 @@ export default async function LeadDetailsPage({
       description: leads.description,
       sourceData: leads.sourceData,
       market: leads.market,
+      serviceType: leads.serviceType,
+      category: leads.category,
       city: leads.city,
       state: leads.state,
       country: leads.country,
@@ -90,7 +99,7 @@ export default async function LeadDetailsPage({
 
   if (!lead) notFound();
 
-  const [followUpRows, nextFollowUpRows] = await Promise.all([
+  const [followUpRows, nextFollowUpRows, assignmentQueryRows] = await Promise.all([
     db
       .select({
         id: followups.id,
@@ -119,6 +128,19 @@ export default async function LeadDetailsPage({
       )
       .orderBy(followups.dueAt)
       .limit(1),
+    db
+      .select({
+        id: leadQueries.id,
+        status: leadQueries.status,
+        assignedAt: leadQueries.assignedAt,
+        closedAt: leadQueries.closedAt,
+        assigneeName: users.fullName,
+      })
+      .from(leadQueries)
+      .leftJoin(users, eq(leadQueries.assignedTo, users.id))
+      .where(eq(leadQueries.leadId, lead.id))
+      .orderBy(desc(leadQueries.assignedAt))
+      .limit(20),
   ]);
 
   const sourceEntries = Object.entries(lead.sourceData ?? {});
@@ -128,11 +150,11 @@ export default async function LeadDetailsPage({
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
       <Link
-        href={`/leads?market=${lead.market}`}
+        href="/leads"
         className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to {lead.market === "INTERNATIONAL" ? "International" : "Domestic"} leads
+        Back to all leads
       </Link>
 
       <header className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -144,7 +166,7 @@ export default async function LeadDetailsPage({
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  {lead.market === "INTERNATIONAL" ? "International" : "Domestic"} lead
+                  Lead record
                 </p>
                 <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight sm:text-3xl">
                   {lead.name}
@@ -199,7 +221,7 @@ export default async function LeadDetailsPage({
           </div>
           <p className="mt-3 text-lg font-semibold">{lead.packageName ?? "No package selected"}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {lead.packageCategory ?? (lead.market === "INTERNATIONAL" ? "International" : "Domestic")}
+            {lead.packageCategory ?? "Package details"}
             {lead.packageDurationDays ? ` · ${lead.packageDurationDays} days` : ""}
           </p>
         </article>
@@ -263,6 +285,26 @@ export default async function LeadDetailsPage({
                 }
               />
               <DetailItem label="Lead source" value={lead.sourceName} />
+              <DetailItem
+                label="Department"
+                value={
+                  lead.market === "INTERNATIONAL"
+                    ? `International${lead.serviceType ? ` · ${lead.serviceType === "VISA" ? "Visa" : "Travel"}` : ""}`
+                    : "Domestic"
+                }
+              />
+              <DetailItem
+                label="Category"
+                value={
+                  lead.category === "TICKET"
+                    ? "Ticket"
+                    : lead.category === "VISA"
+                      ? "Visa"
+                      : lead.category === "HOLIDAY"
+                        ? "Holiday"
+                        : null
+                }
+              />
               <DetailItem
                 label="Location"
                 value={
@@ -371,6 +413,60 @@ export default async function LeadDetailsPage({
           {followUpRows.length === 20 && (
             <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
               Showing the most recent 20 follow-ups.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold tracking-tight">Assignment query history</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Open queries and previous owner assignments.
+              </p>
+            </div>
+            <Clock3 className="mt-1 h-4 w-4 text-primary" />
+          </div>
+          {assignmentQueryRows.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+              No assignment queries yet. Assign an owner from the Leads summary to start tracking.
+            </p>
+          ) : (
+            <ol className="space-y-4">
+              {assignmentQueryRows.map((query) => {
+                const endAt = query.closedAt ?? new Date();
+                const daysOpen = Math.max(
+                  0,
+                  Math.floor((endAt.getTime() - query.assignedAt.getTime()) / 86_400_000),
+                );
+                return (
+                  <li key={query.id} className="rounded-lg border bg-muted/10 p-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        {query.assigneeName ?? "Former team member"}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          query.status === "OPEN"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {query.status} · {daysOpen} {daysOpen === 1 ? "day" : "days"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Assigned {formatDate(query.assignedAt)}
+                      {query.closedAt ? ` · Closed ${formatDate(query.closedAt)}` : ""}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+          {assignmentQueryRows.length === 20 && (
+            <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+              Showing the latest 20 assignment queries.
             </p>
           )}
         </section>

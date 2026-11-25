@@ -29,6 +29,8 @@ export const leadStatusEnum = pgEnum("lead_status", [
   "LOST",
   "JUNK",
 ]);
+export const leadCategoryEnum = pgEnum("lead_category", ["TICKET", "VISA", "HOLIDAY"]);
+export const leadQueryStatusEnum = pgEnum("lead_query_status", ["OPEN", "CLOSED"]);
 export const priorityEnum = pgEnum("priority", ["LOW", "MEDIUM", "HIGH", "HOT"]);
 export const followupStatusEnum = pgEnum("followup_status", [
   "PENDING",
@@ -174,6 +176,7 @@ export const leads = pgTable(
     description: text("description"),
     sourceData: jsonb("source_data").$type<Record<string, string>>(),
     market: varchar("market", { length: 20 }).default("DOMESTIC").notNull(),
+    serviceType: varchar("service_type", { length: 30 }),
     city: varchar("city", { length: 100 }),
     state: varchar("state", { length: 100 }),
     country: varchar("country", { length: 100 }),
@@ -181,6 +184,7 @@ export const leads = pgTable(
     packageId: uuid("package_id").references(() => packages.id),
     budget: integer("budget"),
     status: leadStatusEnum("status").default("NEW").notNull(),
+    category: leadCategoryEnum("category"),
     priority: priorityEnum("priority").default("MEDIUM").notNull(),
     assignedTo: uuid("assigned_to").references(() => users.id),
     lostReason: text("lost_reason"),
@@ -197,6 +201,27 @@ export const leads = pgTable(
       .where(sql`${table.deletedAt} is null`),
     index("leads_active_created_idx").on(table.createdAt).where(sql`${table.deletedAt} is null`),
     uniqueIndex("leads_active_phone_unique").on(table.phone).where(sql`${table.deletedAt} is null`),
+  ],
+);
+
+export const leadQueries = pgTable(
+  "lead_queries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+    assignedTo: uuid("assigned_to").notNull().references(() => users.id),
+    assignedBy: uuid("assigned_by").references(() => users.id),
+    status: leadQueryStatusEnum("status").default("OPEN").notNull(),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow().notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedBy: uuid("closed_by").references(() => users.id),
+  },
+  (table) => [
+    index("lead_queries_lead_assigned_idx").on(table.leadId, table.assignedAt),
+    index("lead_queries_assigned_status_idx").on(table.assignedTo, table.status, table.assignedAt),
+    uniqueIndex("lead_queries_one_open_per_lead_unique")
+      .on(table.leadId)
+      .where(sql`${table.status} = 'OPEN'`),
   ],
 );
 

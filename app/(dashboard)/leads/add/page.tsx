@@ -51,10 +51,10 @@ export default async function AddLeadPage({
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Add Leads</h1>
         </div>
         <Link
-          href={`/leads?market=${market}`}
+          href="/leads"
           className="inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-medium hover:bg-accent"
         >
-          View {market === "DOMESTIC" ? "Domestic" : "International"} pipeline
+          View all leads
         </Link>
       </div>
 

@@ -4,13 +4,23 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
-import { followups, leadSources, leads, packages, priorityEnum } from "@/src/db/schema";
+import {
+  followups,
+  leadQueries,
+  leadSources,
+  leads,
+  packages,
+  priorityEnum,
+  users,
+} from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 import { z } from "zod";
 import { normalizeCsvHeader, parseCsv } from "./csv";
 import {
   createLeadSchema,
+  leadCategorySchema,
+  parseLeadCategory,
   leadMarketSchema,
   leadStatusSchema,
 } from "./schemas";
@@ -88,6 +98,13 @@ function parseLeadStatus(value: string) {
   return parsed.success ? parsed.data : "NEW";
 }
 
+function parseLeadServiceType(value: string, market: "DOMESTIC" | "INTERNATIONAL") {
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized.includes("VISA")) return "VISA" as const;
+  if (normalized.includes("TRAVEL") || normalized.includes("HOLIDAY")) return "TRAVEL" as const;
+  return market === "INTERNATIONAL" ? ("TRAVEL" as const) : undefined;
+}
+
 function parseBudget(value: string) {
   const normalized = value.trim().replace(/^(?:₹|INR)\s*/i, "").replace(/,/g, "");
   return /^\d+$/.test(normalized) ? normalized : "";
@@ -148,6 +165,8 @@ async function insertLead(draft: LeadDraft, userId: string) {
       phone: draft.phone,
       alternatePhone: draft.alternatePhone,
       market: draft.market,
+      serviceType: draft.market === "INTERNATIONAL" ? draft.serviceType ?? "TRAVEL" : null,
+      category: draft.category ?? null,
       email: draft.email,
       company: draft.company,
       city: draft.city,
@@ -198,6 +217,8 @@ export async function createLeadAction(
     phone: formData.get("phone"),
     alternatePhone: formData.get("alternatePhone"),
     market: formData.get("market"),
+    serviceType: formData.get("serviceType"),
+    category: formData.get("category"),
     email: formData.get("email"),
     company: formData.get("company"),
     city: formData.get("city"),
@@ -215,6 +236,9 @@ export async function createLeadAction(
       error: parsed.error.issues[0]?.message ?? "Check the lead details and try again.",
       success: false,
     };
+  }
+  if (!parsed.data.category) {
+    return { error: "Select a lead category.", success: false };
   }
 
   const nextFollowUpAt = parseFollowUpDate(parsed.data.nextFollowUpAt);
@@ -317,6 +341,159 @@ export async function updateLeadStatusAction(formData: FormData) {
 
   revalidatePath("/leads");
   revalidatePath(`/leads/${updatedLead.id}`);
+}
+
+export async function assignLeadAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit")) {
+    throw new Error("You do not have permission to assign leads.");
+  }
+
+  const parsed = z
+    .object({
+      leadId: z.uuid(),
+      assignedTo: z.union([z.uuid(), z.literal("")]),
+    })
+    .safeParse({
+      leadId: formData.get("leadId"),
+      assignedTo: formData.get("assignedTo"),
+    });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid lead assignment.");
+  }
+
+  const assigneeId = parsed.data.assignedTo || null;
+  if (assigneeId) {
+    const [activeAssignee] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, assigneeId), eq(users.active, true), isNull(users.deletedAt)))
+      .limit(1);
+    if (!activeAssignee) throw new Error("Choose an active team member.");
+  }
+
+  const [updatedLead] = await db
+    .update(leads)
+    .set({
+      assignedTo: assigneeId,
+      updatedBy: session.userId,
+      updatedAt: new Date(),
+      version: sql`${leads.version} + 1`,
+    })
+    .where(and(eq(leads.id, parsed.data.leadId), isNull(leads.deletedAt)))
+    .returning({ id: leads.id });
+  if (!updatedLead) throw new Error("This lead was not found or is no longer active.");
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${updatedLead.id}`);
+}
+
+export async function updateLeadCategoryAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit")) {
+    throw new Error("You do not have permission to change lead categories.");
+  }
+
+  const parsed = z
+    .object({
+      leadId: z.uuid(),
+      category: z.union([leadCategorySchema, z.literal("")]),
+    })
+    .safeParse({
+      leadId: formData.get("leadId"),
+      category: formData.get("category"),
+    });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid lead category.");
+  }
+
+  const [updatedLead] = await db
+    .update(leads)
+    .set({
+      category: parsed.data.category || null,
+      updatedBy: session.userId,
+      updatedAt: new Date(),
+      version: sql`${leads.version} + 1`,
+    })
+    .where(and(eq(leads.id, parsed.data.leadId), isNull(leads.deletedAt)))
+    .returning({ id: leads.id });
+  if (!updatedLead) throw new Error("This lead was not found or is no longer active.");
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${updatedLead.id}`);
+}
+
+export async function closeLeadQueryAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit")) {
+    throw new Error("You do not have permission to close lead queries.");
+  }
+
+  const parsed = z
+    .object({ queryId: z.uuid(), leadId: z.uuid() })
+    .safeParse({
+      queryId: formData.get("queryId"),
+      leadId: formData.get("leadId"),
+    });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid lead query.");
+  }
+
+  const [closedQuery] = await db
+    .update(leadQueries)
+    .set({
+      status: "CLOSED",
+      closedAt: new Date(),
+      closedBy: session.userId,
+    })
+    .where(
+      and(
+        eq(leadQueries.id, parsed.data.queryId),
+        eq(leadQueries.leadId, parsed.data.leadId),
+        eq(leadQueries.status, "OPEN"),
+      ),
+    )
+    .returning({ id: leadQueries.id });
+  if (!closedQuery) throw new Error("This query is already closed or no longer exists.");
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${parsed.data.leadId}`);
+}
+
+export async function createLeadQueryAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit")) {
+    throw new Error("You do not have permission to create lead queries.");
+  }
+
+  const parsed = z.uuid().safeParse(formData.get("leadId"));
+  if (!parsed.success) throw new Error("Invalid lead.");
+
+  const [lead] = await db
+    .select({ id: leads.id, assignedTo: leads.assignedTo })
+    .from(leads)
+    .where(and(eq(leads.id, parsed.data), isNull(leads.deletedAt)))
+    .limit(1);
+  if (!lead) throw new Error("This lead was not found or is no longer active.");
+  if (!lead.assignedTo) throw new Error("Assign this lead to a team member before creating a query.");
+
+  const [createdQuery] = await db
+    .insert(leadQueries)
+    .values({
+      leadId: lead.id,
+      assignedTo: lead.assignedTo,
+      assignedBy: session.userId,
+    })
+    .onConflictDoNothing()
+    .returning({ id: leadQueries.id });
+  if (!createdQuery) throw new Error("This lead already has an open query.");
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${lead.id}`);
 }
 
 function cellAt(row: string[], headerIndexes: Map<string, number>, name: string) {
@@ -457,6 +634,11 @@ export async function importLeadsAction(
     }
 
     const priority = cellAt(row, headerIndexes, "priority").toUpperCase() || "MEDIUM";
+    const category = parseLeadCategory(cellAt(row, headerIndexes, "category"));
+    if (category.error) {
+      addError(`Row ${rowNumber}: ${category.error}`);
+      continue;
+    }
     const sourceData = readCsvSourceData(nonEmptyRecords[0].row, row);
     const budget = parseBudget(
       cellAtAny(row, headerIndexes, [
@@ -478,6 +660,11 @@ export async function importLeadsAction(
         "whatsappnumber",
       ]),
       market,
+      serviceType: parseLeadServiceType(
+        cellAtAny(row, headerIndexes, ["service", "servicetype", "department"]),
+        market,
+      ),
+      category: category.category,
       email: cellAtAny(row, headerIndexes, ["email", "emailaddress"]),
       company: cellAt(row, headerIndexes, "company"),
       city: cellAt(row, headerIndexes, "city"),
@@ -531,6 +718,8 @@ export async function importLeadsAction(
         phone: draft.phone,
         alternatePhone: draft.alternatePhone,
         market: draft.market,
+        serviceType: draft.market === "INTERNATIONAL" ? draft.serviceType ?? "TRAVEL" : null,
+        category: draft.category ?? null,
         email: draft.email,
         company: draft.company,
         city: draft.city,

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/src/components/layout/app-shell";
 import { getSession } from "@/src/lib/auth/session";
 
+export const instant = false;
+
 export default function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

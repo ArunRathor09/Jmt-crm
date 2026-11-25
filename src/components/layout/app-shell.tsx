@@ -4,7 +4,6 @@ import {
   Bell,
   BriefcaseBusiness,
   CheckSquare2,
-  ChevronDown,
   ChevronLeft,
   CircleHelp,
   LayoutDashboard,
@@ -19,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
@@ -45,19 +44,15 @@ export function AppShell({
   role: AuthRole;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [leadsOpen, setLeadsOpen] = useState(pathname.startsWith("/leads"));
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.href !== "/packages" || can(role, "packages.manage")) &&
       (item.href !== "/leads/add" || can(role, "leads.create")),
   );
-  const selectedMarket =
-    searchParams.get("market") === "INTERNATIONAL" ? "INTERNATIONAL" : "DOMESTIC";
 
   useEffect(() => {
     const openPalette = () => setPaletteOpen(true);
@@ -123,69 +118,10 @@ export function AppShell({
           {visibleNavItems.map((item) => {
             const active =
               item.href === "/leads"
-                ? pathname === item.href
+                ? pathname === item.href ||
+                  (pathname.startsWith(`${item.href}/`) && !pathname.startsWith("/leads/add"))
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
-            if (item.href === "/leads") {
-              return (
-                <div key={item.href}>
-                  <button
-                    type="button"
-                    aria-expanded={leadsOpen}
-                    onClick={() => {
-                      if (collapsed) {
-                        setCollapsed(false);
-                        setLeadsOpen(true);
-                      } else {
-                        setLeadsOpen((open) => !open);
-                      }
-                    }}
-                    title={collapsed ? item.label : undefined}
-                    className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
-                      active
-                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    } ${collapsed ? "justify-center" : ""}`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && (
-                      <>
-                        <span>{item.label}</span>
-                        <ChevronDown
-                          className={`ml-auto h-4 w-4 transition-transform ${leadsOpen ? "rotate-180" : ""}`}
-                        />
-                      </>
-                    )}
-                  </button>
-                  {leadsOpen && !collapsed && (
-                    <div className="ml-4 mt-1 space-y-1 border-l pl-3">
-                      {[
-                        { market: "DOMESTIC", label: "Domestic" },
-                        { market: "INTERNATIONAL", label: "International" },
-                      ].map((category) => {
-                        const selected =
-                          active && selectedMarket === category.market;
-                        return (
-                          <Link
-                            key={category.market}
-                            href={`/leads?market=${category.market}`}
-                            onClick={() => setMobileOpen(false)}
-                            aria-current={selected ? "page" : undefined}
-                            className={`flex h-9 items-center rounded-lg px-3 text-sm transition-colors ${
-                              selected
-                                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                            }`}
-                          >
-                            {category.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            }
             return (
               <Link
                 key={item.href}

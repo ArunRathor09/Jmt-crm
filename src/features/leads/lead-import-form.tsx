@@ -88,7 +88,8 @@ export function LeadImportForm({
         </div>
         <p className="text-xs text-muted-foreground">
           Meta lead exports (CSV or tab-separated) are supported. Name/Full Name and
-          Phone/Phone Number are required; all other columns are saved in the lead details.
+          Phone/Phone Number are required. Optional Category values: Ticket, Visa, or Holiday.
+          Other columns are saved in the lead details.
           Packages are matched within the selected {market.toLowerCase()} category.
         </p>
         <div className="flex flex-wrap items-center gap-3 border-t pt-4">

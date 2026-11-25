@@ -65,7 +65,15 @@ export function readCsvSourceData(headers: string[], row: string[]) {
   headers.forEach((header, index) => {
     const label = header.trim().slice(0, 100);
     const value = row[index]?.trim();
-    if (label && value) sourceData[label] = value.slice(0, 2000);
+    if (
+      label &&
+      value &&
+      !["category", "leadcategory"].includes(
+        label.toLowerCase().replace(/[\s_-]+/g, ""),
+      )
+    ) {
+      sourceData[label] = value.slice(0, 2000);
+    }
   });
   return sourceData;
 }

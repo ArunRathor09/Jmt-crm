@@ -1,2 +1,2 @@
-full_name,phone_number,whatsapp_number,email,city,lead_status,Priority,Remark,package,price,source,next_followup
+full_name,phone_number,whatsapp_number,email,city,category,lead_status,Priority,Remark,package,price,source,next_followup
 Example Lead,+919876543210,+919876543210,example@example.com,Mumbai,NEW,HIGH,Interested in the package,,25000,Website,2026-12-01T10:30:00+05:30

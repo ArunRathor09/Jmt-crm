@@ -6,9 +6,14 @@ import { useState } from "react";
 import { useActionState } from "react";
 import { createLeadAction, type LeadActionState } from "./actions";
 import { getLeadQuestionFields } from "./source-fields";
-import type { leadMarkets, leadStatusValues } from "./schemas";
+import type {
+  leadMarkets,
+  leadServiceTypes,
+  leadStatusValues,
+} from "./schemas";
 
 type Market = (typeof leadMarkets)[number];
+type ServiceType = (typeof leadServiceTypes)[number];
 type Status = (typeof leadStatusValues)[number];
 
 const initialState: LeadActionState = { error: null, success: false };
@@ -36,6 +41,7 @@ export function LeadCreateForm({
 }) {
   const [state, formAction, pending] = useActionState(createLeadAction, initialState);
   const [market, setMarket] = useState(initialMarket);
+  const [serviceType, setServiceType] = useState<ServiceType>("TRAVEL");
   const [packageId, setPackageId] = useState("");
   const availablePackages = packages.filter((item) => item.category === market);
   const selectedPackage = availablePackages.find((item) => item.id === packageId);
@@ -65,12 +71,24 @@ export function LeadCreateForm({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm font-medium">
-              Category
+              Lead category
+              <select name="category" required defaultValue="" className={fieldClassName}>
+                <option value="" disabled>Select a category</option>
+                <option value="TICKET">Ticket</option>
+                <option value="VISA">Visa</option>
+                <option value="HOLIDAY">Holiday</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Department
               <select
                 name="market"
                 value={market}
                 onChange={(event) => {
-                  setMarket(event.target.value === "INTERNATIONAL" ? "INTERNATIONAL" : "DOMESTIC");
+                  const nextMarket =
+                    event.target.value === "INTERNATIONAL" ? "INTERNATIONAL" : "DOMESTIC";
+                  setMarket(nextMarket);
+                  setServiceType("TRAVEL");
                   setPackageId("");
                 }}
                 className={fieldClassName}
@@ -79,6 +97,27 @@ export function LeadCreateForm({
                 <option value="INTERNATIONAL">International</option>
               </select>
             </label>
+            {market === "INTERNATIONAL" ? (
+              <label className="grid gap-1.5 text-sm font-medium">
+                International service
+                <select
+                  name="serviceType"
+                  required
+                  value={serviceType}
+                  onChange={(event) =>
+                    setServiceType(
+                      event.target.value === "VISA" ? "VISA" : ("TRAVEL" as ServiceType),
+                    )
+                  }
+                  className={fieldClassName}
+                >
+                  <option value="TRAVEL">Travel</option>
+                  <option value="VISA">Visa</option>
+                </select>
+              </label>
+            ) : (
+              <input type="hidden" name="serviceType" value="" />
+            )}
             <label className="grid gap-1.5 text-sm font-medium">
               Package
               <select
@@ -248,8 +287,8 @@ export function LeadCreateForm({
         {state.success && (
           <p role="status" className="text-sm text-emerald-700">
             Lead added.{" "}
-            <Link href={`/leads?market=${market}`} className="font-medium underline">
-              View pipeline
+            <Link href="/leads" className="font-medium underline">
+              View all leads
             </Link>
           </p>
         )}

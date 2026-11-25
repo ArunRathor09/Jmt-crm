@@ -2,8 +2,13 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/src/db";
-import { leadExternalReferences, leads, leadStatusEnum } from "@/src/db/schema";
-import { createLeadSchema } from "./schemas";
+import {
+  leadCategoryEnum,
+  leadExternalReferences,
+  leads,
+  leadStatusEnum,
+} from "@/src/db/schema";
+import { createLeadSchema, parseLeadCategory } from "./schemas";
 import { normalizeCsvHeader } from "./csv";
 
 const provider = "google-sheets-dubai";
@@ -39,6 +44,7 @@ const leadProjection = {
   description: leads.description,
   budget: leads.budget,
   status: leads.status,
+  category: leads.category,
   sourceData: leads.sourceData,
   payloadHash: sql<string | null>`null`,
 };
@@ -52,6 +58,7 @@ type ExistingLead = {
   description: string | null;
   budget: number | null;
   status: LeadStatus;
+  category: (typeof leadCategoryEnum.enumValues)[number] | null;
   sourceData: Record<string, string> | null;
   payloadHash: string | null;
 };
@@ -148,6 +155,8 @@ function parseRow(values: Record<string, string>) {
     Object.fromEntries(Object.entries(normalizedPayload).sort(([a], [b]) => a.localeCompare(b))),
   );
   const statusText = cellAt(values, "lead_status");
+  const parsedCategory = parseLeadCategory(cellAt(values, "category", "lead_category"));
+  if (parsedCategory.error) throw new Error(parsedCategory.error);
   const sourceData = {
     ...normalizedPayload,
     integration_source: "Meta Ads - Dubai",
@@ -162,6 +171,7 @@ function parseRow(values: Record<string, string>) {
     description: cellAt(values, "what_is_the_purpose_of_your_dubai_trip"),
     market: "INTERNATIONAL",
     status: sheetStatus(statusText),
+    category: parsedCategory.category,
     priority: "MEDIUM",
     budget: parseBudget(
       cellAt(values, "what_is_your_approximate_budget_per_person", "budget"),
@@ -283,6 +293,7 @@ async function updateLead(
       sourceData: { ...existing.sourceData, ...lead.sourceData },
       market: "INTERNATIONAL",
       status: lead.status,
+      category: lead.category ?? existing.category,
       updatedAt: new Date(),
     })
     .where(and(eq(leads.id, existing.id), isNull(leads.deletedAt)))
@@ -331,6 +342,7 @@ export async function syncDubaiSheetRow(values: Record<string, string>) {
       budget: lead.budget,
       sourceData: lead.sourceData,
       status: lead.status,
+      category: lead.category ?? null,
       priority: lead.priority,
     })
     .onConflictDoNothing()

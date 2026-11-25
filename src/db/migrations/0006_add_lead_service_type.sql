@@ -1,0 +1,1 @@
+ALTER TABLE "leads" ADD COLUMN "service_type" varchar(30);
