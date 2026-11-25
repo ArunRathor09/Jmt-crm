@@ -34,9 +34,7 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
    ```
 
 4. Open the Dubai spreadsheet and select **Extensions → Apps Script**. Add the contents of [`scripts/google-sheets-dubai-sync.gs`](../scripts/google-sheets-dubai-sync.gs) to its bound Apps Script project.
-5. In Apps Script **Project Settings → Script Properties**, add:
-   - `JMT_CRM_WEBHOOK_URL`: `https://jmt-crm.vercel.app/api/integrations/google-sheets/dubai`.
-   - `JMT_CRM_WEBHOOK_SECRET`: the same secret used by the CRM environment.
+5. In Apps Script **Project Settings → Script Properties**, add `JMT_CRM_WEBHOOK_SECRET` with the same secret used by the CRM environment. `setupDubaiLeadSync` writes `JMT_CRM_WEBHOOK_URL` automatically as `https://jmt-crm.vercel.app/api/integrations/google-sheets/dubai`.
 6. Run `setupDubaiLeadSync` once and approve the requested permissions. This installs the edit trigger and one-minute change check.
 7. Run `syncAllDubaiLeads` once to import existing rows. Later edits sync automatically; rows updated by external tools are detected on the next one-minute check.
 

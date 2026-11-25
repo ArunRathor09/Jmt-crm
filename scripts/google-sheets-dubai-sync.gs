@@ -8,6 +8,10 @@ function setupDubaiLeadSync() {
   if (!spreadsheet.getSheetByName(DUBAI_SHEET_TAB)) {
     throw new Error(`Could not find the "${DUBAI_SHEET_TAB}" sheet tab.`);
   }
+  PropertiesService.getScriptProperties().setProperty(
+    "JMT_CRM_WEBHOOK_URL",
+    DUBAI_CRM_WEBHOOK_URL,
+  );
 
   ScriptApp.getProjectTriggers()
     .filter((trigger) =>
