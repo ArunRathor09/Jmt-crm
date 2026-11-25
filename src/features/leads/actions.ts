@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
-import { followups, leadSources, leads, packages } from "@/src/db/schema";
+import { followups, leadSources, leads, packages, priorityEnum } from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 import { normalizeCsvHeader, parseCsv } from "./csv";
@@ -14,6 +14,7 @@ import {
   leadStatusSchema,
 } from "./schemas";
 import { readCsvSourceData, readManualSourceData } from "./source-fields";
+import { z } from "zod";
 
 export type LeadActionState = {
   error: string | null;
@@ -27,6 +28,11 @@ export type LeadImportState = {
   errors: string[];
 };
 
+export type FollowUpScheduleState = {
+  error: string | null;
+  success: boolean;
+};
+
 type LeadDraft = ReturnType<typeof createLeadSchema.parse>;
 
 const initialImportState: LeadImportState = {
@@ -35,6 +41,15 @@ const initialImportState: LeadImportState = {
   skipped: 0,
   errors: [],
 };
+
+const followUpTypes = ["CALL", "WHATSAPP", "EMAIL", "MEETING", "TASK"] as const;
+
+const scheduleFollowUpSchema = z.object({
+  leadId: z.uuid(),
+  dueAt: z.string().trim().min(1, "Choose a follow-up date and time.").max(40),
+  type: z.enum(followUpTypes),
+  priority: z.enum(priorityEnum.enumValues),
+});
 
 function parseFollowUpDate(value?: string) {
   if (!value) return null;
@@ -211,6 +226,60 @@ export async function createLeadAction(
   if (result.error) return { error: result.error, success: false };
 
   revalidatePath("/leads");
+  return { error: null, success: true };
+}
+
+export async function scheduleLeadFollowUpAction(
+  _previousState: FollowUpScheduleState,
+  formData: FormData,
+): Promise<FollowUpScheduleState> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit") && !can(session.role, "tasks.manage")) {
+    return { error: "You do not have permission to schedule follow-ups.", success: false };
+  }
+
+  const parsed = scheduleFollowUpSchema.safeParse({
+    leadId: formData.get("leadId"),
+    dueAt: formData.get("dueAt"),
+    type: formData.get("type"),
+    priority: formData.get("priority"),
+  });
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Check the follow-up details and try again.",
+      success: false,
+    };
+  }
+
+  const dueAt = parseFollowUpDate(parsed.data.dueAt);
+  if (!dueAt) {
+    return { error: "Enter a valid follow-up date and time.", success: false };
+  }
+  if (dueAt.getTime() <= Date.now()) {
+    return { error: "Choose a future follow-up date and time.", success: false };
+  }
+
+  const [lead] = await db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(and(eq(leads.id, parsed.data.leadId), isNull(leads.deletedAt)))
+    .limit(1);
+  if (!lead) {
+    return { error: "This lead was not found or is no longer active.", success: false };
+  }
+
+  await db.insert(followups).values({
+    leadId: lead.id,
+    assignedTo: session.userId,
+    type: parsed.data.type,
+    dueAt,
+    priority: parsed.data.priority,
+    createdBy: session.userId,
+  });
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${lead.id}`);
   return { error: null, success: true };
 }
 
