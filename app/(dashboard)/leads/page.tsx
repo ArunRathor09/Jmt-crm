@@ -27,6 +27,107 @@ type PipelineStats = {
   overdueFollowups: number;
 };
 
+type LeadPageQuery = {
+  q?: string;
+  status?: string;
+  market?: string;
+  priority?: string;
+  newPage?: string;
+  existingPage?: string;
+};
+
+const LEADS_PER_PAGE = 5;
+
+function parsePage(value?: string) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function LeadPagination({
+  page,
+  totalPages,
+  totalRows,
+  pageKey,
+  params,
+}: {
+  page: number;
+  totalPages: number;
+  totalRows: number;
+  pageKey: "newPage" | "existingPage";
+  params: LeadPageQuery;
+}) {
+  if (totalPages <= 1) return null;
+
+  const startPage = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const endPage = Math.min(totalPages, startPage + 4);
+  const rowStart = (page - 1) * LEADS_PER_PAGE + 1;
+  const rowEnd = Math.min(page * LEADS_PER_PAGE, totalRows);
+  const hrefForPage = (targetPage: number) => {
+    const query = new URLSearchParams();
+    for (const key of ["q", "status", "market", "priority", "newPage", "existingPage"] as const) {
+      if (key === pageKey) continue;
+      const value = params[key];
+      if (value) query.set(key, value);
+    }
+    query.set(pageKey, String(targetPage));
+    return `/leads?${query.toString()}`;
+  };
+  const pageLinkClass =
+    "grid h-9 min-w-9 place-items-center rounded-lg border px-2 text-sm transition-colors hover:bg-accent";
+
+  return (
+    <nav
+      aria-label={`Lead list pagination, page ${page} of ${totalPages}`}
+      className="flex flex-col gap-3 border-t bg-muted/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+    >
+      <p className="text-xs text-muted-foreground">
+        Showing <span className="font-medium text-foreground">{rowStart}–{rowEnd}</span> of{" "}
+        <span className="font-medium text-foreground">{totalRows}</span>
+      </p>
+      <div className="flex items-center gap-1.5">
+        {page > 1 ? (
+          <Link href={hrefForPage(page - 1)} className={`${pageLinkClass} gap-1 px-3`}>
+            <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+            Previous
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={`${pageLinkClass} gap-1 px-3 opacity-45`}>
+            <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+            Previous
+          </span>
+        )}
+        {Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index).map(
+          (pageNumber) => (
+            <Link
+              key={pageNumber}
+              href={hrefForPage(pageNumber)}
+              aria-current={pageNumber === page ? "page" : undefined}
+              className={`${pageLinkClass} ${
+                pageNumber === page
+                  ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {pageNumber}
+            </Link>
+          ),
+        )}
+        {page < totalPages ? (
+          <Link href={hrefForPage(page + 1)} className={`${pageLinkClass} gap-1 px-3`}>
+            Next
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={`${pageLinkClass} gap-1 px-3 opacity-45`}>
+            Next
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        )}
+      </div>
+    </nav>
+  );
+}
+
 function PipelineStageControl({
   leadId,
   status,
@@ -75,7 +176,7 @@ function PipelineStageControl({
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; market?: string; priority?: string }>;
+  searchParams: Promise<LeadPageQuery>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -123,7 +224,7 @@ export default async function LeadsPage({
     sourceName: leadSources.name,
     packageName: packages.name,
   };
-  const [statsResult, statusCounts, newLeadRows, olderLeadRows] = await Promise.all([
+  const [statsResult, statusCounts, newLeadCountResult, olderLeadCountResult] = await Promise.all([
     db.execute<PipelineStats>(sql`
       with market_stats as (
         select
@@ -159,13 +260,33 @@ export default async function LeadsPage({
       .where(and(isNull(leads.deletedAt), eq(leads.market, market)))
       .groupBy(leads.status),
     db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...conditions, eq(leads.status, "NEW"))),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...conditions, ne(leads.status, "NEW"))),
+  ]);
+  const stats = statsResult.rows[0];
+  if (!stats) throw new Error("Lead pipeline statistics query returned no result.");
+
+  const totalNewLeads = newLeadCountResult[0]?.count ?? 0;
+  const totalOlderLeads = olderLeadCountResult[0]?.count ?? 0;
+  const newTotalPages = Math.max(1, Math.ceil(totalNewLeads / LEADS_PER_PAGE));
+  const olderTotalPages = Math.max(1, Math.ceil(totalOlderLeads / LEADS_PER_PAGE));
+  const newPage = Math.min(parsePage(params.newPage), newTotalPages);
+  const existingPage = Math.min(parsePage(params.existingPage), olderTotalPages);
+  const [newLeadRows, olderLeadRows] = await Promise.all([
+    db
       .select(leadSelection)
       .from(leads)
       .leftJoin(leadSources, eq(leads.sourceId, leadSources.id))
       .leftJoin(packages, eq(leads.packageId, packages.id))
       .where(and(...conditions, eq(leads.status, "NEW")))
       .orderBy(desc(leads.createdAt))
-      .limit(100),
+      .limit(LEADS_PER_PAGE)
+      .offset((newPage - 1) * LEADS_PER_PAGE),
     db
       .select(leadSelection)
       .from(leads)
@@ -173,10 +294,9 @@ export default async function LeadsPage({
       .leftJoin(packages, eq(leads.packageId, packages.id))
       .where(and(...conditions, ne(leads.status, "NEW")))
       .orderBy(desc(leads.createdAt))
-      .limit(100),
+      .limit(LEADS_PER_PAGE)
+      .offset((existingPage - 1) * LEADS_PER_PAGE),
   ]);
-  const stats = statsResult.rows[0];
-  if (!stats) throw new Error("Lead pipeline statistics query returned no result.");
 
   const leadIds = [...newLeadRows, ...olderLeadRows].map((lead) => lead.id);
   const upcomingFollowups =
@@ -455,7 +575,7 @@ export default async function LeadsPage({
             </div>
           </div>
           <span className="w-fit rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            Showing {newLeadRows.length}{newLeadRows.length === 100 ? " latest 100" : ""}
+            {totalNewLeads} total · Page {newPage} of {newTotalPages}
           </span>
         </div>
         {newLeadRows.length === 0 ? (
@@ -601,6 +721,13 @@ export default async function LeadsPage({
             </table>
           </div>
         )}
+        <LeadPagination
+          page={newPage}
+          totalPages={newTotalPages}
+          totalRows={totalNewLeads}
+          pageKey="newPage"
+          params={params}
+        />
       </section>
 
       <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -608,8 +735,8 @@ export default async function LeadsPage({
           <div>
             <h2 className="font-semibold">Existing leads</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {olderLeadRows.length} {olderLeadRows.length === 1 ? "lead" : "leads"}
-              {olderLeadRows.length === 100 ? " (latest 100)" : ""}
+              {totalOlderLeads} {totalOlderLeads === 1 ? "lead" : "leads"}
+              {" · "}Page {existingPage} of {olderTotalPages}
               {search || selectedStatus || selectedPriority ? " matching your filters" : ""}
             </p>
           </div>
@@ -761,6 +888,13 @@ export default async function LeadsPage({
             </table>
           </div>
         )}
+        <LeadPagination
+          page={existingPage}
+          totalPages={olderTotalPages}
+          totalRows={totalOlderLeads}
+          pageKey="existingPage"
+          params={params}
+        />
       </section>
     </div>
   );
