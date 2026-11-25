@@ -1,9 +1,10 @@
 import { and, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { Clock3, Eye, Flame, MessageCircle, PhoneCall, Plus, Search, Sparkles, Upload, Users } from "lucide-react";
+import { ArrowRight, Clock3, Eye, Flame, MessageCircle, PhoneCall, Plus, Search, Sparkles, Upload, Users } from "lucide-react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
+import { updateLeadStatusAction } from "@/src/features/leads/actions";
 import { LeadAutoRefresh } from "@/src/features/leads/lead-auto-refresh";
 import { LeadFollowUpForm } from "@/src/features/leads/lead-follow-up-form";
 import { followups, leadSources, leadStatusEnum, leads, packages, priorityEnum } from "@/src/db/schema";
@@ -25,6 +26,51 @@ type PipelineStats = {
   hotLeads: number;
   overdueFollowups: number;
 };
+
+function PipelineStageControl({
+  leadId,
+  status,
+  canEdit,
+}: {
+  leadId: string;
+  status: (typeof leadStatusEnum.enumValues)[number];
+  canEdit: boolean;
+}) {
+  if (!canEdit) {
+    return (
+      <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium">
+        {status.replaceAll("_", " ")}
+      </span>
+    );
+  }
+
+  return (
+    <form action={updateLeadStatusAction} className="flex items-center gap-1.5">
+      <input type="hidden" name="leadId" value={leadId} />
+      <label className="sr-only" htmlFor={`lead-stage-${leadId}`}>
+        Update lead stage
+      </label>
+      <select
+        id={`lead-stage-${leadId}`}
+        name="status"
+        defaultValue={status}
+        className="h-9 max-w-[150px] rounded-lg border bg-background px-2 text-xs"
+      >
+        {leadStatusEnum.enumValues.map((option) => (
+          <option key={option} value={option}>
+            {option.replaceAll("_", " ")}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        className="h-9 rounded-lg border bg-card px-2 text-xs font-medium text-primary transition-colors hover:bg-accent"
+      >
+        Move
+      </button>
+    </form>
+  );
+}
 
 export default async function LeadsPage({
   searchParams,
@@ -77,7 +123,7 @@ export default async function LeadsPage({
     sourceName: leadSources.name,
     packageName: packages.name,
   };
-  const [statsResult, newLeadRows, olderLeadRows] = await Promise.all([
+  const [statsResult, statusCounts, newLeadRows, olderLeadRows] = await Promise.all([
     db.execute<PipelineStats>(sql`
       with market_stats as (
         select
@@ -104,6 +150,14 @@ export default async function LeadsPage({
         ) as "overdueFollowups"
       from market_stats
     `),
+    db
+      .select({
+        status: leads.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leads)
+      .where(and(isNull(leads.deletedAt), eq(leads.market, market)))
+      .groupBy(leads.status),
     db
       .select(leadSelection)
       .from(leads)
@@ -143,13 +197,23 @@ export default async function LeadsPage({
           )
           .orderBy(followups.leadId, followups.dueAt);
   const nextFollowUpByLead = new Map<string, Date>();
+  const canScheduleFollowUp =
+    can(session.role, "leads.edit") || can(session.role, "tasks.manage");
+  const canEditLeads = can(session.role, "leads.edit");
   for (const followup of upcomingFollowups) {
     if (followup.leadId && !nextFollowUpByLead.has(followup.leadId)) {
       nextFollowUpByLead.set(followup.leadId, followup.dueAt);
     }
-    const canScheduleFollowUp =
-      can(session.role, "leads.edit") || can(session.role, "tasks.manage");
   }
+  const statusCountByStatus = new Map(statusCounts.map(({ status, count }) => [status, count]));
+  const pipelineStages = [
+    { status: "NEW", label: "New", hint: "Needs first contact" },
+    { status: "CONTACTED", label: "Contacted", hint: "Conversation started" },
+    { status: "QUALIFIED", label: "Qualified", hint: "Needs confirmed" },
+    { status: "PROPOSAL_SENT", label: "Proposal", hint: "Offer shared" },
+    { status: "NEGOTIATION", label: "Negotiation", hint: "In discussion" },
+    { status: "WON", label: "Won", hint: "Converted" },
+  ] as const;
 
   const kpis = [
     {
@@ -307,6 +371,76 @@ export default async function LeadsPage({
         })}
       </section>
 
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-labelledby="pipeline-heading">
+        <div className="flex flex-col gap-1 border-b px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="pipeline-heading" className="font-semibold">Lead pipeline</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Track each opportunity from first contact through conversion.
+            </p>
+          </div>
+          <Link
+            href={`/leads?market=${market}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            View all {stats.totalLeads} leads
+          </Link>
+        </div>
+        <div className="overflow-x-auto p-4 sm:p-5">
+          <ol className="flex min-w-[780px] items-stretch gap-2">
+            {pipelineStages.map((stage, index) => {
+              const count = statusCountByStatus.get(stage.status) ?? 0;
+              const isSelected = selectedStatus === stage.status;
+              return (
+                <Fragment key={stage.status}>
+                  <li className="min-w-0 flex-1">
+                    <Link
+                      href={`/leads?market=${market}&status=${stage.status}`}
+                      aria-current={isSelected ? "step" : undefined}
+                      className={`group flex h-full flex-col rounded-xl border p-3 transition-colors hover:border-primary/40 hover:bg-accent/50 ${
+                        isSelected ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {stage.label}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          isSelected ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
+                        }`}>
+                          {count}
+                        </span>
+                      </span>
+                      <span className="mt-2 text-xs text-muted-foreground">{stage.hint}</span>
+                    </Link>
+                  </li>
+                  {index < pipelineStages.length - 1 && (
+                    <li aria-hidden="true" className="flex items-center text-muted-foreground/60">
+                      <span className="h-px w-3 bg-border" />
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </li>
+                  )}
+                </Fragment>
+              );
+            })}
+          </ol>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            {(["LOST", "JUNK"] as const).map((status) => (
+              <Link
+                key={status}
+                href={`/leads?market=${market}&status=${status}`}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+              >
+                {status === "LOST" ? "Lost" : "Junk"}
+                <span className="font-semibold text-foreground">
+                  {statusCountByStatus.get(status) ?? 0}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-labelledby="new-leads-heading">
         <div className="flex flex-col gap-3 border-b bg-gradient-to-r from-accent/70 to-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -330,12 +464,13 @@ export default async function LeadsPage({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left text-sm">
+            <table className="w-full min-w-[1320px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Lead</th>
                   <th className="px-5 py-3 font-medium">Contact</th>
                   <th className="px-5 py-3 font-medium">Package / budget</th>
+                  <th className="px-5 py-3 font-medium">Pipeline stage</th>
                   <th className="px-5 py-3 font-medium">Next follow-up / schedule</th>
                   <th className="px-5 py-3 font-medium">Priority</th>
                   <th className="px-5 py-3 font-medium">Source</th>
@@ -402,6 +537,13 @@ export default async function LeadsPage({
                           <p className="font-medium">{lead.packageName ?? "Not selected"}</p>
                           <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(lead.budget)}</p>
                         </td>
+                        <td className="px-5 py-4">
+                          <PipelineStageControl
+                            leadId={lead.id}
+                            status={lead.status}
+                            canEdit={canEditLeads}
+                          />
+                        </td>
                         <td className="min-w-[290px] px-5 py-4">
                           <p className={nextFollowUp ? "font-medium" : "text-xs text-muted-foreground"}>
                             {nextFollowUp ? formatDate(nextFollowUp) : "No follow-up scheduled"}
@@ -435,7 +577,7 @@ export default async function LeadsPage({
                       </tr>
                       {sourceEntries.length > 0 && (
                         <tr className="bg-muted/10">
-                          <td colSpan={7} className="px-5 py-3">
+                          <td colSpan={8} className="px-5 py-3">
                             <details>
                               <summary className="cursor-pointer text-sm font-medium text-primary">
                                 View {sourceEntries.length} form details
@@ -573,9 +715,11 @@ export default async function LeadsPage({
                           </span>
                         </td>
                         <td className="px-5 py-4">
-                          <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium">
-                            {lead.status.replaceAll("_", " ")}
-                          </span>
+                          <PipelineStageControl
+                            leadId={lead.id}
+                            status={lead.status}
+                            canEdit={canEditLeads}
+                          />
                         </td>
                         <td className="px-5 py-4 text-muted-foreground">
                           {lead.sourceName ?? sourceData.integration_source ?? "—"}

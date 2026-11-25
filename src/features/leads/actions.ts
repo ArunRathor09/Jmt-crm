@@ -1,12 +1,13 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
 import { followups, leadSources, leads, packages, priorityEnum } from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
+import { z } from "zod";
 import { normalizeCsvHeader, parseCsv } from "./csv";
 import {
   createLeadSchema,
@@ -14,7 +15,6 @@ import {
   leadStatusSchema,
 } from "./schemas";
 import { readCsvSourceData, readManualSourceData } from "./source-fields";
-import { z } from "zod";
 
 export type LeadActionState = {
   error: string | null;
@@ -281,6 +281,42 @@ export async function scheduleLeadFollowUpAction(
   revalidatePath("/leads");
   revalidatePath(`/leads/${lead.id}`);
   return { error: null, success: true };
+}
+
+export async function updateLeadStatusAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit")) {
+    throw new Error("You do not have permission to update lead stages.");
+  }
+
+  const parsed = z
+    .object({
+      leadId: z.uuid(),
+      status: leadStatusSchema,
+    })
+    .safeParse({
+      leadId: formData.get("leadId"),
+      status: formData.get("status"),
+    });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid lead stage.");
+  }
+
+  const [updatedLead] = await db
+    .update(leads)
+    .set({
+      status: parsed.data.status,
+      updatedBy: session.userId,
+      updatedAt: new Date(),
+      version: sql`${leads.version} + 1`,
+    })
+    .where(and(eq(leads.id, parsed.data.leadId), isNull(leads.deletedAt)))
+    .returning({ id: leads.id });
+  if (!updatedLead) throw new Error("This lead was not found or is no longer active.");
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${updatedLead.id}`);
 }
 
 function cellAt(row: string[], headerIndexes: Map<string, number>, name: string) {
