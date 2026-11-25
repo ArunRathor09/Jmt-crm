@@ -27,11 +27,13 @@ import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
 const priorityClasses = {
-  LOW: "bg-slate-100 text-slate-700",
-  MEDIUM: "bg-blue-50 text-blue-700",
-  HIGH: "bg-amber-50 text-amber-800",
-  HOT: "bg-rose-50 text-rose-700",
+  LOW: "bg-muted text-muted-foreground",
+  MEDIUM: "bg-primary/10 text-primary",
+  HIGH: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  HOT: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
+
+export const instant = false;
 
 function DetailItem({
   label,

@@ -59,6 +59,7 @@ const scheduleFollowUpSchema = z.object({
   dueAt: z.string().trim().min(1, "Choose a follow-up date and time.").max(40),
   type: z.enum(followUpTypes),
   priority: z.enum(priorityEnum.enumValues),
+  notes: z.string().trim().max(2000, "Notes must be 2000 characters or fewer."),
 });
 
 function parseFollowUpDate(value?: string) {
@@ -268,6 +269,7 @@ export async function scheduleLeadFollowUpAction(
     dueAt: formData.get("dueAt"),
     type: formData.get("type"),
     priority: formData.get("priority"),
+    notes: formData.get("notes") ?? "",
   });
   if (!parsed.success) {
     return {
@@ -299,6 +301,7 @@ export async function scheduleLeadFollowUpAction(
     type: parsed.data.type,
     dueAt,
     priority: parsed.data.priority,
+    outcomeNote: parsed.data.notes || null,
     createdBy: session.userId,
   });
 

@@ -23,7 +23,7 @@ async function AuthenticatedDashboardLayout({
   if (session.mustChangePassword) redirect("/change-password");
 
   return (
-    <AppShell role={session.role}>
+    <AppShell role={session.role} userName={session.fullName}>
       <Suspense fallback={<PageLoading />}>{children}</Suspense>
     </AppShell>
   );

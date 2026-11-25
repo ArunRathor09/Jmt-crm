@@ -10,7 +10,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { ArrowRight, ClipboardList, Plus, Search, Upload, Users } from "lucide-react";
+import { ArrowRight, ClipboardList, Eye, Plus, Search, Upload, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -45,6 +45,8 @@ type LeadPageQuery = {
 };
 
 const LEADS_PER_PAGE = 50;
+
+export const instant = false;
 
 function parsePage(value?: string) {
   const parsed = Number(value);
@@ -380,7 +382,7 @@ async function LeadsContent({
         <div className="flex flex-wrap gap-2">
           <Link
             href="#lead-summary"
-            className="inline-flex h-10 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:bg-accent"
+            className="hidden h-10 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:bg-accent sm:inline-flex"
           >
             <ClipboardList className="h-4 w-4" />
             Lead Summary
@@ -465,7 +467,7 @@ async function LeadsContent({
 
           <form
             action="/leads#lead-summary"
-            className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_repeat(6,minmax(120px,1fr))_auto_auto]"
+            className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_repeat(6,minmax(120px,1fr))_auto_auto]"
             role="search"
             aria-label="Filter leads"
           >
@@ -474,7 +476,7 @@ async function LeadsContent({
               name="q"
               defaultValue={search}
               placeholder="Search name, phone, email"
-              className="h-9 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="col-span-2 h-9 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring sm:col-span-1"
             />
             <select
               name="serviceType"
@@ -578,19 +580,19 @@ async function LeadsContent({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-          <table className="w-full min-w-[1300px] text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+          <table className="w-full min-w-[1450px] border-separate border-spacing-0 text-left text-sm">
+            <thead className="sticky top-0 z-20 bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
               <tr>
-                <th className="w-16 px-4 py-3 font-semibold">S.No</th>
-                <th className="min-w-[210px] px-4 py-3 font-semibold">Lead name</th>
-                <th className="min-w-[150px] px-4 py-3 font-semibold">Phone</th>
-                <th className="min-w-[210px] px-4 py-3 font-semibold">Email</th>
-                <th className="min-w-[150px] px-4 py-3 font-semibold">Department</th>
-                <th className="min-w-[120px] px-4 py-3 font-semibold">Category</th>
-                <th className="min-w-[150px] px-4 py-3 font-semibold">Lead owner</th>
-                <th className="min-w-[200px] px-4 py-3 font-semibold">Query</th>
-                <th className="min-w-[190px] px-4 py-3 font-semibold">Next follow-up</th>
-                <th className="w-28 px-4 py-3 text-right font-semibold">Edit</th>
+                <th className="sticky left-0 top-0 z-30 w-14 min-w-14 border-r bg-muted px-2 py-3 font-semibold sm:w-16 sm:min-w-16 sm:px-4">S.No</th>
+                <th className="sticky left-14 top-0 z-30 w-[140px] min-w-[140px] border-r bg-muted px-2 py-3 font-semibold sm:left-16 sm:w-[220px] sm:min-w-[220px] sm:px-4">Lead name</th>
+                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Phone</th>
+                <th className="sticky top-0 z-20 min-w-[210px] bg-muted px-4 py-3 font-semibold">Email</th>
+                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Department</th>
+                <th className="sticky top-0 z-20 min-w-[120px] bg-muted px-4 py-3 font-semibold">Category</th>
+                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Lead owner</th>
+                <th className="sticky top-0 z-20 min-w-[200px] bg-muted px-4 py-3 font-semibold">Query</th>
+                <th className="sticky top-0 z-20 min-w-[190px] bg-muted px-4 py-3 font-semibold">Next follow-up</th>
+                <th className="sticky right-0 top-0 z-30 w-28 min-w-28 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[180px] sm:min-w-[180px] sm:px-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -613,14 +615,14 @@ async function LeadsContent({
                     : "Domestic";
 
                 return (
-                  <tr key={lead.id} className="transition-colors hover:bg-muted/30">
-                    <td className="px-4 py-3.5 text-xs font-medium tabular-nums text-muted-foreground">
+                  <tr key={lead.id} className="group transition-colors hover:bg-muted/30">
+                    <td className="sticky left-0 z-10 w-14 min-w-14 border-r bg-card px-2 py-3.5 text-xs font-medium tabular-nums text-muted-foreground group-hover:bg-muted/30 sm:w-16 sm:min-w-16 sm:px-4">
                       {(page - 1) * LEADS_PER_PAGE + index + 1}
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="sticky left-14 z-10 w-[140px] min-w-[140px] border-r bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:left-16 sm:w-[220px] sm:min-w-[220px] sm:px-4">
                       <Link
                         href={`/leads/${lead.id}`}
-                        className="font-semibold text-foreground hover:text-primary"
+                        className="block truncate font-semibold text-foreground hover:text-primary"
                       >
                         {lead.name}
                       </Link>
@@ -691,30 +693,40 @@ async function LeadsContent({
                         <span className="text-xs text-muted-foreground">Not scheduled</span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <LeadEditDialog
-                        leadId={lead.id}
-                        leadName={lead.name}
-                        status={lead.status}
-                        priority={lead.priority}
-                        category={lead.category}
-                        assignedTo={lead.assignedTo}
-                        assignmentQuery={
-                          assignmentQuery
-                            ? {
-                                id: assignmentQuery.id,
-                                status: assignmentQuery.status,
-                                assignedAt: assignmentQuery.assignedAt.toISOString(),
-                                closedAt: assignmentQuery.closedAt?.toISOString() ?? null,
-                                daysOpen: queryAgeDays ?? 0,
-                              }
-                            : null
-                        }
-                        assignedToName={lead.assignedToName}
-                        activeUsers={activeUsers}
-                        canEdit={canEditLeads}
-                        canScheduleFollowUp={canScheduleFollowUp}
-                      />
+                    <td className="sticky right-0 z-10 w-28 min-w-28 border-l bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[180px] sm:min-w-[180px] sm:px-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          aria-label={`View ${lead.name}`}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border bg-background px-0 text-xs font-medium transition-colors hover:bg-accent sm:w-auto sm:px-2.5"
+                        >
+                          <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">View</span>
+                        </Link>
+                        <LeadEditDialog
+                          leadId={lead.id}
+                          leadName={lead.name}
+                          status={lead.status}
+                          priority={lead.priority}
+                          category={lead.category}
+                          assignedTo={lead.assignedTo}
+                          assignmentQuery={
+                            assignmentQuery
+                              ? {
+                                  id: assignmentQuery.id,
+                                  status: assignmentQuery.status,
+                                  assignedAt: assignmentQuery.assignedAt.toISOString(),
+                                  closedAt: assignmentQuery.closedAt?.toISOString() ?? null,
+                                  daysOpen: queryAgeDays ?? 0,
+                                }
+                              : null
+                          }
+                          assignedToName={lead.assignedToName}
+                          activeUsers={activeUsers}
+                          canEdit={canEditLeads}
+                          canScheduleFollowUp={canScheduleFollowUp}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );

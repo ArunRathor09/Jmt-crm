@@ -9,6 +9,8 @@ import { leadMarketSchema } from "@/src/features/leads/schemas";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
+export const instant = false;
+
 export default async function AddLeadPage({
   searchParams,
 }: {

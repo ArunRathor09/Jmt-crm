@@ -6,6 +6,8 @@ import { PackageCreateForm } from "@/src/features/packages/package-create-form";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
+export const instant = false;
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",

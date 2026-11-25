@@ -76,11 +76,11 @@ export function LeadEditDialog({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:px-3"
         aria-label={`Edit ${leadName}`}
       >
         <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-        Edit
+        <span className="hidden sm:inline">Edit</span>
       </button>
       {open && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5">

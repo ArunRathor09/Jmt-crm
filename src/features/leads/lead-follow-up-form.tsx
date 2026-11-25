@@ -82,10 +82,20 @@ export function LeadFollowUpForm({
         required
         className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs"
       />
+      <label className="col-span-2 grid gap-1.5 text-xs font-medium text-muted-foreground">
+        Notes
+        <textarea
+          name="notes"
+          rows={3}
+          maxLength={2000}
+          placeholder="Add any useful context for this follow-up"
+          className="min-h-20 resize-y rounded-md border bg-background px-2.5 py-2 text-sm font-normal text-foreground"
+        />
+      </label>
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? (
           <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />

@@ -5,6 +5,8 @@ import { generateSecret, generateURI } from "otplib";
 import { getSession } from "@/src/lib/auth/session";
 import { TotpSetupForm } from "./totp-form";
 
+export const instant = false;
+
 export default async function TotpSetupPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -23,8 +25,8 @@ export default async function TotpSetupPage() {
     <main className="grid min-h-screen place-items-center bg-muted/30 px-4 py-10">
       <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl sm:p-8">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-xl border bg-white">
-            <Image src="/assets/logo.svg" alt="JMT" width={44} height={44} className="h-11 w-11" />
+          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl border bg-white">
+            <Image src="/assets/logo.svg" alt="JMT" width={44} height={44} className="h-11 w-11 object-contain" />
           </div>
           <div>
             <p className="font-semibold">JMT CRM</p>

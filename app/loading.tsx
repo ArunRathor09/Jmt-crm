@@ -1,7 +1,8 @@
 export default function Loading() {
   return (
-    <div className="grid min-h-screen place-items-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    <div role="status" className="grid min-h-screen place-items-center bg-background">
+      <span className="sr-only">Loading page</span>
+      <div aria-hidden="true" className="h-9 w-9 animate-spin rounded-full border-2 border-muted border-t-primary" />
     </div>
   );
 }
