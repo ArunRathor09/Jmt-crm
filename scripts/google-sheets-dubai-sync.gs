@@ -1,4 +1,6 @@
 const DUBAI_SHEET_TAB = "Dubai form 29/10/";
+const DUBAI_CRM_WEBHOOK_URL =
+  "https://jmt-crm.vercel.app/api/integrations/google-sheets/dubai";
 const ROWS_PER_REQUEST = 20;
 
 function setupDubaiLeadSync() {
@@ -97,10 +99,11 @@ function sendDubaiRows_(rows) {
   if (!rows.length) return;
 
   const properties = PropertiesService.getScriptProperties();
-  const endpoint = properties.getProperty("JMT_CRM_WEBHOOK_URL");
+  const endpoint =
+    properties.getProperty("JMT_CRM_WEBHOOK_URL") || DUBAI_CRM_WEBHOOK_URL;
   const secret = properties.getProperty("JMT_CRM_WEBHOOK_SECRET");
-  if (!endpoint || !secret) {
-    throw new Error("Set JMT_CRM_WEBHOOK_URL and JMT_CRM_WEBHOOK_SECRET in Script Properties.");
+  if (!secret) {
+    throw new Error("Set JMT_CRM_WEBHOOK_SECRET in Script Properties.");
   }
 
   for (let offset = 0; offset < rows.length; offset += ROWS_PER_REQUEST) {
