@@ -36,6 +36,13 @@
       "when": 1795521303726,
       "tag": "0004_strong_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795590600926,
+      "tag": "0005_crazy_phil_sheldon",
+      "breakpoints": true
     }
   ]
 }

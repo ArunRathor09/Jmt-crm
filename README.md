@@ -18,6 +18,7 @@ JMT-CRM simplifies travel business operations by providing a centralized platfor
 - Lead assignment to sales executives
 - Lead source and status tracking
 - Customer interaction history
+- Near-real-time Dubai Meta Ads lead sync from Google Sheets ([setup guide](./docs/google-sheets-dubai-sync.md))
 
 ### Sales CRM
 - Sales pipeline management

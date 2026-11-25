@@ -206,6 +206,7 @@ export const leadExternalReferences = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     provider: varchar("provider", { length: 100 }).notNull(),
     externalKey: varchar("external_key", { length: 100 }).notNull(),
+    payloadHash: varchar("payload_hash", { length: 64 }),
     leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
     ...auditColumns,
   },

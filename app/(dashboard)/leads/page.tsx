@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
+import { LeadAutoRefresh } from "@/src/features/leads/lead-auto-refresh";
 import { followups, leadSources, leadStatusEnum, leads, packages, priorityEnum } from "@/src/db/schema";
 import { formatCurrency, formatDate, getWhatsAppUrl } from "@/src/features/leads/format";
 import { leadMarketSchema } from "@/src/features/leads/schemas";
@@ -182,6 +183,7 @@ export default async function LeadsPage({
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6">
+      <LeadAutoRefresh />
       <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4">
         <div>
@@ -494,7 +496,9 @@ export default async function LeadsPage({
                             {lead.status.replaceAll("_", " ")}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-muted-foreground">{lead.sourceName ?? "—"}</td>
+                        <td className="px-5 py-4 text-muted-foreground">
+                          {lead.sourceName ?? sourceData.integration_source ?? "—"}
+                        </td>
                         <td className="px-5 py-4">
                           <Link
                             href={`/leads/${lead.id}`}
