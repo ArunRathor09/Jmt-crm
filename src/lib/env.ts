@@ -12,6 +12,7 @@ export const env = createEnv({
     ENCRYPTION_KEY: z.string().min(32),
     RESEND_API_KEY: z.string().optional(),
     SENTRY_DSN: z.string().url().optional(),
+    GOOGLE_SHEETS_WEBHOOK_SECRET: z.string().min(32).optional(),
   },
   experimental__runtimeEnv: process.env,
 });

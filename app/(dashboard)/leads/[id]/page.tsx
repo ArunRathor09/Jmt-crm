@@ -166,13 +166,15 @@ export default async function LeadDetailsPage({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
-              <a
-                href={`tel:${lead.phone}`}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-              >
-                <PhoneCall className="h-4 w-4" />
-                Call lead
-              </a>
+              {lead.phone && (
+                <a
+                  href={`tel:${lead.phone}`}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  Call lead
+                </a>
+              )}
               {whatsappUrl && (
                 <a
                   href={whatsappUrl}
@@ -237,7 +239,13 @@ export default async function LeadDetailsPage({
             <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
               <DetailItem
                 label="Calling number"
-                value={<a href={`tel:${lead.phone}`} className="text-primary hover:underline">{lead.phone}</a>}
+                value={
+                  lead.phone ? (
+                    <a href={`tel:${lead.phone}`} className="text-primary hover:underline">
+                      {lead.phone}
+                    </a>
+                  ) : "Not provided"
+                }
               />
               <DetailItem
                 label="WhatsApp number"

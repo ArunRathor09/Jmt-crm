@@ -1,5 +1,5 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import { Clock3, Eye, Flame, MessageCircle, PhoneCall, Plus, Search, Upload, Users } from "lucide-react";
+import { and, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { ArrowUpRight, Clock3, Eye, Flame, MessageCircle, PhoneCall, Plus, Search, Sparkles, Upload, Users } from "lucide-react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,10 +11,10 @@ import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
 const priorityClasses = {
-  LOW: "bg-slate-100 text-slate-700",
-  MEDIUM: "bg-blue-50 text-blue-700",
-  HIGH: "bg-amber-50 text-amber-800",
-  HOT: "bg-rose-50 text-rose-700",
+  LOW: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  MEDIUM: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200",
+  HIGH: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  HOT: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-200",
 };
 
 type PipelineStats = {
@@ -58,7 +58,24 @@ export default async function LeadsPage({
   if (selectedStatus) conditions.push(eq(leads.status, selectedStatus));
   if (selectedPriority) conditions.push(eq(leads.priority, selectedPriority));
 
-  const [statsResult, leadRows] = await Promise.all([
+  const leadSelection = {
+    id: leads.id,
+    name: leads.name,
+    phone: leads.phone,
+    alternatePhone: leads.alternatePhone,
+    email: leads.email,
+    company: leads.company,
+    city: leads.city,
+    description: leads.description,
+    sourceData: leads.sourceData,
+    status: leads.status,
+    priority: leads.priority,
+    budget: leads.budget,
+    createdAt: leads.createdAt,
+    sourceName: leadSources.name,
+    packageName: packages.name,
+  };
+  const [statsResult, newLeadRows, olderLeadRows] = await Promise.all([
     db.execute<PipelineStats>(sql`
       with market_stats as (
         select
@@ -86,34 +103,26 @@ export default async function LeadsPage({
       from market_stats
     `),
     db
-      .select({
-        id: leads.id,
-        name: leads.name,
-        phone: leads.phone,
-        alternatePhone: leads.alternatePhone,
-        email: leads.email,
-        company: leads.company,
-        city: leads.city,
-        description: leads.description,
-        sourceData: leads.sourceData,
-        status: leads.status,
-        priority: leads.priority,
-        budget: leads.budget,
-        createdAt: leads.createdAt,
-        sourceName: leadSources.name,
-        packageName: packages.name,
-      })
+      .select(leadSelection)
       .from(leads)
       .leftJoin(leadSources, eq(leads.sourceId, leadSources.id))
       .leftJoin(packages, eq(leads.packageId, packages.id))
-      .where(and(...conditions))
+      .where(and(...conditions, eq(leads.status, "NEW")))
+      .orderBy(desc(leads.createdAt))
+      .limit(8),
+    db
+      .select(leadSelection)
+      .from(leads)
+      .leftJoin(leadSources, eq(leads.sourceId, leadSources.id))
+      .leftJoin(packages, eq(leads.packageId, packages.id))
+      .where(and(...conditions, ne(leads.status, "NEW")))
       .orderBy(desc(leads.createdAt))
       .limit(100),
   ]);
   const stats = statsResult.rows[0];
   if (!stats) throw new Error("Lead pipeline statistics query returned no result.");
 
-  const leadIds = leadRows.map((lead) => lead.id);
+  const leadIds = [...newLeadRows, ...olderLeadRows].map((lead) => lead.id);
   const upcomingFollowups =
     leadIds.length === 0
       ? []
@@ -173,24 +182,31 @@ export default async function LeadsPage({
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6">
-      <div className="flex flex-col gap-4">
+      <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-            Lead management
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            <Sparkles className="h-4 w-4" />
+            Lead workspace
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             {market === "DOMESTIC" ? "Domestic" : "International"} leads
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Track lead quality, package interest, and the next follow-up.
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            A clear view of new opportunities and your existing pipeline, all in one place.
           </p>
         </div>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <form action="/leads" className="flex flex-wrap gap-2">
+          <form
+            action="/leads"
+            className="flex flex-wrap gap-2"
+            role="search"
+            aria-label="Filter leads"
+          >
             <select
               name="market"
               defaultValue={market}
-              className="h-10 rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
               aria-label="Lead category"
             >
               <option value="DOMESTIC">Domestic</option>
@@ -200,12 +216,12 @@ export default async function LeadsPage({
               name="q"
               defaultValue={search}
               placeholder="Search name, phone, email, city"
-              className="h-10 w-full rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring sm:w-64"
+              className="h-10 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring sm:w-64"
             />
             <select
               name="status"
               defaultValue={selectedStatus ?? ""}
-              className="h-10 rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
             >
               <option value="">All statuses</option>
               {leadStatusEnum.enumValues.map((status) => (
@@ -217,7 +233,7 @@ export default async function LeadsPage({
             <select
               name="priority"
               defaultValue={selectedPriority ?? ""}
-              className="h-10 rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="h-10 rounded-xl border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
               aria-label="Priority"
             >
               <option value="">All priorities</option>
@@ -229,7 +245,7 @@ export default async function LeadsPage({
             </select>
             <button
               type="submit"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border bg-card px-4 text-sm font-medium hover:bg-accent"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border bg-background px-4 text-sm font-medium transition hover:bg-accent"
             >
               <Search className="h-4 w-4" />
               Search
@@ -239,14 +255,14 @@ export default async function LeadsPage({
             <div className="flex gap-2">
               <Link
                 href={`/leads/add?market=${market}`}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90"
               >
                 <Plus className="h-4 w-4" />
                 Add lead
               </Link>
               <Link
                 href={`/leads/add?market=${market}#csv-import`}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border bg-card px-4 text-sm font-medium hover:bg-accent"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border bg-background px-4 text-sm font-medium transition hover:bg-accent"
               >
                 <Upload className="h-4 w-4" />
                 Import CSV
@@ -254,9 +270,10 @@ export default async function LeadsPage({
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Lead pipeline summary">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Lead pipeline summary">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           const content = (
@@ -272,7 +289,7 @@ export default async function LeadsPage({
             </>
           );
           const className =
-            "rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/30 sm:p-5";
+            "rounded-2xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md sm:p-5";
           return kpi.href ? (
             <Link key={kpi.label} href={kpi.href} className={className}>
               {content}
@@ -285,24 +302,100 @@ export default async function LeadsPage({
         })}
       </section>
 
-      <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-labelledby="new-leads-heading">
+        <div className="flex flex-col gap-3 border-b bg-gradient-to-r from-accent/70 to-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 id="new-leads-heading" className="font-semibold">New leads</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Fresh opportunities ready for your first follow-up</p>
+            </div>
+          </div>
+          <span className="w-fit rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+            Showing {newLeadRows.length} latest
+          </span>
+        </div>
+        {newLeadRows.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            No new leads match these filters.
+          </p>
+        ) : (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            {newLeadRows.map((lead) => {
+              const whatsappUrl = getWhatsAppUrl(lead.alternatePhone ?? lead.phone);
+              return (
+                <article key={lead.id} className="flex min-w-0 flex-col rounded-xl border bg-background/70 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-sm font-semibold text-accent-foreground">
+                      {lead.name.trim().slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/leads/${lead.id}`} className="block truncate text-sm font-semibold hover:text-primary">
+                        {lead.name}
+                      </Link>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{lead.company ?? lead.city ?? "New prospect"}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${priorityClasses[lead.priority]}`}>
+                      {lead.priority}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2 border-t pt-3 text-xs">
+                    <p className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Interested in</span>
+                      <span className="truncate font-medium">{lead.packageName ?? "Package not selected"}</span>
+                    </p>
+                    <p className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Budget</span>
+                      <span className="font-medium">{formatCurrency(lead.budget)}</span>
+                    </p>
+                    <p className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Added</span>
+                      <span className="font-medium">{formatDate(lead.createdAt)}</span>
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    {lead.phone && (
+                      <a href={`tel:${lead.phone}`} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border bg-card text-xs font-medium text-primary transition hover:bg-accent" aria-label={`Call ${lead.name}`}>
+                        <PhoneCall className="h-3.5 w-3.5" />
+                        Call
+                      </a>
+                    )}
+                    {whatsappUrl && (
+                      <a href={whatsappUrl} target="_blank" rel="noreferrer" className="grid h-9 w-9 place-items-center rounded-lg border bg-card text-emerald-700 transition hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950" aria-label={`WhatsApp ${lead.name}`}>
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                    )}
+                    <Link href={`/leads/${lead.id}`} className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground transition hover:opacity-90" aria-label={`View ${lead.name}`}>
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
-            <h2 className="font-semibold">Lead pipeline</h2>
+            <h2 className="font-semibold">Existing leads</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Showing {leadRows.length} {leadRows.length === 1 ? "lead" : "leads"}
+              {olderLeadRows.length} {olderLeadRows.length === 1 ? "lead" : "leads"}
+              {olderLeadRows.length === 100 ? " (latest 100)" : ""}
               {search || selectedStatus || selectedPriority ? " matching your filters" : ""}
-              {leadRows.length === 100 ? " (latest 100)" : ""}
             </p>
           </div>
         </div>
-        {leadRows.length === 0 ? (
+        {olderLeadRows.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-muted-foreground">
-            No leads match these filters. Use Add lead or Import CSV to get started.
+            No existing leads match these filters.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1450px] text-left text-sm">
+            <table className="w-full min-w-[1250px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Lead</th>
@@ -317,7 +410,7 @@ export default async function LeadsPage({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {leadRows.map((lead) => {
+                {olderLeadRows.map((lead) => {
                   const sourceData = lead.sourceData ?? {};
                   const sourceEntries = Object.entries(sourceData);
                   const whatsappUrl = getWhatsAppUrl(lead.alternatePhone ?? lead.phone);
@@ -344,14 +437,16 @@ export default async function LeadsPage({
                         <td className="px-5 py-4 text-muted-foreground">{lead.city ?? "—"}</td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
-                            <a
-                              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-primary hover:bg-accent"
-                              href={`tel:${lead.phone}`}
-                              aria-label={`Call ${lead.name}`}
-                              title="Call lead"
-                            >
-                              <PhoneCall className="h-4 w-4" />
-                            </a>
+                            {lead.phone && (
+                              <a
+                                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-primary hover:bg-accent"
+                                href={`tel:${lead.phone}`}
+                                aria-label={`Call ${lead.name}`}
+                                title="Call lead"
+                              >
+                                <PhoneCall className="h-4 w-4" />
+                              </a>
+                            )}
                             {whatsappUrl && (
                               <a
                                 className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-emerald-700 hover:bg-emerald-50"
@@ -365,9 +460,13 @@ export default async function LeadsPage({
                               </a>
                             )}
                             <div>
-                              <a className="font-medium text-primary hover:underline" href={`tel:${lead.phone}`}>
-                                {lead.phone}
-                              </a>
+                              {lead.phone ? (
+                                <a className="font-medium text-primary hover:underline" href={`tel:${lead.phone}`}>
+                                  {lead.phone}
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">No phone provided</span>
+                              )}
                               {lead.alternatePhone && lead.alternatePhone !== lead.phone && (
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   WhatsApp: {lead.alternatePhone}

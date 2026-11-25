@@ -167,7 +167,7 @@ export const leads = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 150 }).notNull(),
-    phone: varchar("phone", { length: 20 }).notNull(),
+    phone: varchar("phone", { length: 20 }),
     alternatePhone: varchar("alternate_phone", { length: 20 }),
     email: varchar("email", { length: 255 }),
     company: varchar("company", { length: 150 }),
@@ -197,6 +197,24 @@ export const leads = pgTable(
       .where(sql`${table.deletedAt} is null`),
     index("leads_active_created_idx").on(table.createdAt).where(sql`${table.deletedAt} is null`),
     uniqueIndex("leads_active_phone_unique").on(table.phone).where(sql`${table.deletedAt} is null`),
+  ],
+);
+
+export const leadExternalReferences = pgTable(
+  "lead_external_references",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: varchar("provider", { length: 100 }).notNull(),
+    externalKey: varchar("external_key", { length: 100 }).notNull(),
+    leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+    ...auditColumns,
+  },
+  (table) => [
+    uniqueIndex("lead_external_references_provider_key_unique").on(
+      table.provider,
+      table.externalKey,
+    ),
+    index("lead_external_references_lead_id_idx").on(table.leadId),
   ],
 );
 

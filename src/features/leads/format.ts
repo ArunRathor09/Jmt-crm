@@ -16,7 +16,8 @@ export function formatDate(value: Date | null) {
   }).format(value);
 }
 
-export function getWhatsAppUrl(phone: string) {
+export function getWhatsAppUrl(phone: string | null | undefined) {
+  if (!phone) return null;
   const rawDigits = phone.replace(/\D/g, "");
   const digits = rawDigits.startsWith("00") ? rawDigits.slice(2) : rawDigits;
   const localDigits =

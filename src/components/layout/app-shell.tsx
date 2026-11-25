@@ -88,7 +88,7 @@ export function AppShell({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-sidebar text-sidebar-foreground transition-[width,transform] duration-200 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl shadow-slate-950/10 transition-[width,transform] duration-200 ${
           collapsed ? "w-[72px]" : "w-[260px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
@@ -106,7 +106,7 @@ export function AppShell({
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">JMT CRM</p>
-              <p className="truncate text-xs text-muted-foreground">Workspace</p>
+              <p className="truncate text-xs text-sidebar-foreground/65">Workspace</p>
             </div>
           )}
           <button
@@ -144,7 +144,7 @@ export function AppShell({
                     className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
                       active
                         ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     } ${collapsed ? "justify-center" : ""}`}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
@@ -174,7 +174,7 @@ export function AppShell({
                             className={`flex h-9 items-center rounded-lg px-3 text-sm transition-colors ${
                               selected
                                 ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                             }`}
                           >
                             {category.label}
@@ -195,7 +195,7 @@ export function AppShell({
                 className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
                   active
                     ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 } ${collapsed ? "justify-center" : ""}`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -205,11 +205,11 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="border-t p-3">
+        <div className="border-t border-sidebar-border p-3">
           <button
             type="button"
             onClick={() => void logoutAction()}
-            className={`mb-1 hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive lg:flex ${
+            className={`mb-1 hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive lg:flex ${
               collapsed ? "justify-center" : ""
             }`}
             aria-label="Sign out"
@@ -220,7 +220,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
-            className={`hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-sidebar-accent lg:flex ${
+            className={`hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent lg:flex ${
               collapsed ? "justify-center" : ""
             }`}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -232,7 +232,7 @@ export function AppShell({
       </aside>
 
       <div className={`transition-[padding] duration-200 ${collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]"}`}>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur lg:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/85 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl lg:px-6">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}

@@ -451,6 +451,9 @@ export async function importLeadsAction(
   }
 
   const followUpValues = createdRows.flatMap((created) => {
+    if (!created.phone) {
+      throw new Error("CSV import created a lead without its required phone number.");
+    }
     const entry = validByPhone.get(created.phone);
     const dueAt = parseFollowUpDate(entry?.draft.nextFollowUpAt);
     if (!entry || !dueAt) return [];
