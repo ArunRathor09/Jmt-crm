@@ -5,6 +5,7 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
 ## Fields and sync rules
 
 - The tab name is `Dubai form 29/10/`.
+- The Apps Script scans the first 20 rows for the header row containing `full_name`/`name` and `phone_number`/`phone`.
 - `full_name`, `phone_number`, `whatsapp_number`, `email`, `city`, trip purpose, budget, and `lead_status` populate the matching lead fields.
 - Budget values are interpreted as INR. All sheet columns are also retained in `sourceData`; `raw_payload` preserves the original row, including the original `lead_status` text.
 - Phone numbers with a country prefix are kept in E.164 form. A 10-digit local number defaults to `+91`. If the phone is blank, `created_time + full_name + form_id` identifies the row; row number is never used as an identity.

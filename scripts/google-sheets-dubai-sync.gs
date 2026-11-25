@@ -2,6 +2,7 @@ const DUBAI_SHEET_TAB = "Dubai form 29/10/";
 const DUBAI_CRM_WEBHOOK_URL =
   "https://jmt-crm.vercel.app/api/integrations/google-sheets/dubai";
 const ROWS_PER_REQUEST = 20;
+const HEADER_SCAN_LIMIT = 20;
 
 function setupDubaiLeadSync() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -33,19 +34,17 @@ function setupDubaiLeadSync() {
 function onDubaiSheetEdit(event) {
   if (!event || !event.range) return;
   const sheet = event.range.getSheet();
-  if (sheet.getName() !== DUBAI_SHEET_TAB || event.range.getLastRow() < 2) return;
+  if (sheet.getName() !== DUBAI_SHEET_TAB) return;
 
-  const firstRow = Math.max(2, event.range.getRow());
+  const header = findHeaderRow_(sheet);
+  if (event.range.getLastRow() <= header.rowNumber) return;
+  const firstRow = Math.max(header.rowNumber + 1, event.range.getRow());
   const lastRow = event.range.getLastRow();
-  const lastColumn = sheet.getLastColumn();
-  if (lastColumn < 1) return;
-
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
   const values = sheet
-    .getRange(firstRow, 1, lastRow - firstRow + 1, lastColumn)
+    .getRange(firstRow, 1, lastRow - firstRow + 1, header.headers.length)
     .getDisplayValues();
   const rows = values
-    .map((row, index) => toSyncRow_(headers, row, firstRow + index))
+    .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
     .filter((row) => row !== null);
 
   sendDubaiRows_(rows);
@@ -56,15 +55,20 @@ function syncAllDubaiLeads() {
   if (!sheet) throw new Error(`Could not find the "${DUBAI_SHEET_TAB}" sheet tab.`);
 
   const lastRow = sheet.getLastRow();
-  const lastColumn = sheet.getLastColumn();
-  if (lastRow < 2 || lastColumn < 1) return;
+  const header = findHeaderRow_(sheet);
+  if (lastRow <= header.rowNumber) return;
 
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
-  for (let firstRow = 2; firstRow <= lastRow; firstRow += ROWS_PER_REQUEST) {
+  for (
+    let firstRow = header.rowNumber + 1;
+    firstRow <= lastRow;
+    firstRow += ROWS_PER_REQUEST
+  ) {
     const rowCount = Math.min(ROWS_PER_REQUEST, lastRow - firstRow + 1);
-    const values = sheet.getRange(firstRow, 1, rowCount, lastColumn).getDisplayValues();
+    const values = sheet
+      .getRange(firstRow, 1, rowCount, header.headers.length)
+      .getDisplayValues();
     const rows = values
-      .map((row, index) => toSyncRow_(headers, row, firstRow + index))
+      .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
       .filter((row) => row !== null);
     if (rows.length > 0) sendDubaiRows_(rows);
   }
@@ -75,18 +79,54 @@ function syncChangedDubaiLeads() {
   if (!sheet) throw new Error(`Could not find the "${DUBAI_SHEET_TAB}" sheet tab.`);
 
   const lastRow = sheet.getLastRow();
-  const lastColumn = sheet.getLastColumn();
-  if (lastRow < 2 || lastColumn < 1) return;
+  const header = findHeaderRow_(sheet);
+  if (lastRow <= header.rowNumber) return;
 
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
-  for (let firstRow = 2; firstRow <= lastRow; firstRow += ROWS_PER_REQUEST) {
+  for (
+    let firstRow = header.rowNumber + 1;
+    firstRow <= lastRow;
+    firstRow += ROWS_PER_REQUEST
+  ) {
     const rowCount = Math.min(ROWS_PER_REQUEST, lastRow - firstRow + 1);
-    const values = sheet.getRange(firstRow, 1, rowCount, lastColumn).getDisplayValues();
+    const values = sheet
+      .getRange(firstRow, 1, rowCount, header.headers.length)
+      .getDisplayValues();
     const rows = values
-      .map((row, index) => toSyncRow_(headers, row, firstRow + index))
+      .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
       .filter((row) => row !== null);
     if (rows.length > 0) sendDubaiRows_(rows);
   }
+}
+
+function findHeaderRow_(sheet) {
+  const rowsToScan = Math.min(sheet.getLastRow(), HEADER_SCAN_LIMIT);
+  const columns = sheet.getLastColumn();
+  if (rowsToScan < 1 || columns < 1) {
+    throw new Error("The Dubai sheet is empty or has no columns.");
+  }
+
+  const candidates = sheet.getRange(1, 1, rowsToScan, columns).getDisplayValues();
+  for (let index = 0; index < candidates.length; index += 1) {
+    const headers = candidates[index];
+    const normalized = headers.map(normalizeSheetHeader_);
+    const hasName = normalized.some((value) =>
+      ["fullname", "name"].includes(value),
+    );
+    const hasPhone = normalized.some((value) =>
+      ["phonenumber", "phone", "mobilenumber"].includes(value),
+    );
+    if (hasName && hasPhone) {
+      return { rowNumber: index + 1, headers };
+    }
+  }
+
+  throw new Error(
+    `Could not find a header row with full_name and phone_number in the first ${HEADER_SCAN_LIMIT} rows.`,
+  );
+}
+
+function normalizeSheetHeader_(value) {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function toSyncRow_(headers, row, rowNumber) {
