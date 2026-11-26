@@ -2,7 +2,6 @@
 
 import {
   BriefcaseBusiness,
-  ChevronLeft,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -37,13 +36,15 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [sidebarFocused, setSidebarFocused] = useState(false);
   const [mobileOpenPath, setMobileOpenPath] = useState<string | null>(null);
   const [paletteOpenPath, setPaletteOpenPath] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const mobileOpen = mobileOpenPath === pathname;
   const paletteOpen = paletteOpenPath === pathname;
+  const collapsed = !sidebarHovered && !sidebarFocused && !mobileOpen;
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.href !== "/packages" || can(role, "packages.manage")) &&
@@ -115,7 +116,18 @@ export function AppShell({
       )}
       <aside
         id="primary-navigation"
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl shadow-slate-950/10 transition-[width,transform] duration-200 ${
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => {
+          setSidebarHovered(false);
+          setSidebarFocused(false);
+        }}
+        onFocus={() => setSidebarFocused(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setSidebarFocused(false);
+          }
+        }}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl shadow-slate-950/10 transition-[width,transform] duration-300 ease-in-out ${
           collapsed ? "w-[72px]" : "w-[260px]"
         } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
@@ -195,22 +207,10 @@ export function AppShell({
             <LogOut className="h-4 w-4" />
             {!collapsed && "Sign out"}
           </button>
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            className={`hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent lg:flex ${
-              collapsed ? "justify-center" : ""
-            }`}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!collapsed}
-          >
-            <ChevronLeft className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />
-            {!collapsed && "Collapse"}
-          </button>
         </div>
       </aside>
 
-      <div className={`transition-[padding] duration-200 ${collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]"}`}>
+      <div className={`transition-[padding] duration-300 ease-in-out ${collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]"}`}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/90 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl lg:px-6">
           <button
             type="button"

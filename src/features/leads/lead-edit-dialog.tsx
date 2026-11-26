@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarClock,
   CheckCircle2,
@@ -68,13 +69,35 @@ export function LeadEditDialog({
   canScheduleFollowUp: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const inactiveAssignee =
     assignedTo !== null && !activeUsers.some((user) => user.id === assignedTo);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const trigger = triggerRef.current;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    closeButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+  }, [open]);
 
   return (
     <>
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setOpen(true)}
         className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:px-3"
         aria-label={`Edit ${leadName}`}
@@ -82,8 +105,9 @@ export function LeadEditDialog({
         <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Edit</span>
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+      {open &&
+        createPortal(
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-5">
           <button
             type="button"
             className="absolute inset-0 cursor-default"
@@ -94,12 +118,12 @@ export function LeadEditDialog({
             role="dialog"
             aria-modal="true"
             aria-labelledby={`edit-lead-title-${leadId}`}
-            className="relative z-10 max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border bg-card shadow-2xl sm:rounded-2xl"
+            className="relative z-10 flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border bg-card shadow-2xl sm:rounded-2xl"
           >
-            <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-card/95 px-5 py-4 backdrop-blur sm:px-6">
-              <div>
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-gradient-to-r from-primary/5 via-card to-card px-5 py-4 sm:px-6">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">Lead workspace</p>
-                <h2 id={`edit-lead-title-${leadId}`} className="mt-1 text-lg font-semibold">
+                <h2 id={`edit-lead-title-${leadId}`} className="mt-1 break-words text-lg font-semibold">
                   Manage {leadName}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -108,6 +132,7 @@ export function LeadEditDialog({
               </div>
               <button
                 type="button"
+                ref={closeButtonRef}
                 onClick={() => setOpen(false)}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 aria-label="Close"
@@ -116,10 +141,10 @@ export function LeadEditDialog({
               </button>
             </header>
 
-            <div className="space-y-4 p-5 sm:p-6">
+            <div className="grid min-h-0 gap-4 overflow-y-auto p-4 sm:grid-cols-2 sm:p-6">
               {canEdit && (
                 <>
-                  <section className="rounded-xl border p-4">
+                  <section className="rounded-xl border bg-background/70 p-4 shadow-sm transition-colors hover:border-primary/25">
                     <div className="mb-3 flex items-center gap-2">
                       <Tag className="h-4 w-4 text-primary" />
                       <div>
@@ -157,7 +182,7 @@ export function LeadEditDialog({
                     </form>
                   </section>
 
-                  <section className="rounded-xl border p-4">
+                  <section className="rounded-xl border bg-background/70 p-4 shadow-sm transition-colors hover:border-primary/25">
                     <div className="mb-3 flex items-center gap-2">
                       <Workflow className="h-4 w-4 text-primary" />
                       <div>
@@ -191,7 +216,7 @@ export function LeadEditDialog({
                     </form>
                   </section>
 
-                  <section className="rounded-xl border p-4">
+                  <section className="rounded-xl border bg-background/70 p-4 shadow-sm transition-colors hover:border-primary/25">
                     <div className="mb-3 flex items-center gap-2">
                       <UserRound className="h-4 w-4 text-primary" />
                       <div>
@@ -231,7 +256,7 @@ export function LeadEditDialog({
                     </form>
                   </section>
 
-                  <section className="rounded-xl border p-4">
+                  <section className="rounded-xl border bg-background/70 p-4 shadow-sm transition-colors hover:border-primary/25 sm:col-span-2">
                     <div className="mb-3 flex items-center gap-2">
                       <ClipboardList className="h-4 w-4 text-primary" />
                       <div>
@@ -305,7 +330,7 @@ export function LeadEditDialog({
               )}
 
               {canScheduleFollowUp && (
-                <section className="rounded-xl border p-4">
+                <section className="rounded-xl border bg-background/70 p-4 shadow-sm transition-colors hover:border-primary/25 sm:col-span-2">
                   <div className="mb-3 flex items-center gap-2">
                     <CalendarClock className="h-4 w-4 text-primary" />
                     <div>
@@ -323,8 +348,9 @@ export function LeadEditDialog({
               )}
             </div>
           </section>
-        </div>
-      )}
+        </div>,
+        document.body,
+        )}
     </>
   );
 }
