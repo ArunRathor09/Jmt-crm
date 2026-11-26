@@ -3,9 +3,11 @@ import {
   desc,
   eq,
   exists,
+  gte,
   ilike,
   inArray,
   isNull,
+  lt,
   notExists,
   or,
   sql,
@@ -26,9 +28,11 @@ import {
 } from "@/src/db/schema";
 import { LeadAutoRefresh } from "@/src/features/leads/lead-auto-refresh";
 import { LeadDeleteMenu } from "@/src/features/leads/lead-delete-menu";
+import { LeadDateFilter, type LeadDateRange } from "@/src/features/leads/lead-date-filter";
 import { LeadEditDialog } from "@/src/features/leads/lead-edit-dialog";
+import { LeadsFilterForm } from "@/src/features/leads/leads-filter-form";
 import { formatDate } from "@/src/features/leads/format";
-import { leadMarketSchema, leadServiceTypeSchema } from "@/src/features/leads/schemas";
+import { leadMarketSchema } from "@/src/features/leads/schemas";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 import { z } from "zod";
@@ -41,11 +45,78 @@ type LeadPageQuery = {
   assignee?: string;
   queryStatus?: string;
   market?: string;
-  serviceType?: string;
+  dateRange?: string;
+  fromDate?: string;
+  toDate?: string;
   page?: string;
 };
 
 const LEADS_PER_PAGE = 50;
+const BUSINESS_TIME_ZONE = "Asia/Kolkata";
+
+function isValidDateInput(value?: string): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function getBusinessDate(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const dateParts = new Map(parts.map(({ type, value }) => [type, value]));
+  return `${dateParts.get("year")}-${dateParts.get("month")}-${dateParts.get("day")}`;
+}
+
+function shiftDate(date: string, days: number) {
+  const shifted = new Date(`${date}T00:00:00.000Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function getDateStart(date: string) {
+  return new Date(`${date}T00:00:00+05:30`);
+}
+
+function getLeadDateBounds(
+  range: LeadDateRange,
+  fromDate: string,
+  toDate: string,
+  now: Date,
+): { start?: Date; end?: Date } | null {
+  const today = getBusinessDate(now);
+  if (range === "today") {
+    return { start: getDateStart(today), end: getDateStart(shiftDate(today, 1)) };
+  }
+  if (range === "yesterday") {
+    const yesterday = shiftDate(today, -1);
+    return { start: getDateStart(yesterday), end: getDateStart(today) };
+  }
+  if (range === "last7days") {
+    return { start: getDateStart(shiftDate(today, -6)), end: getDateStart(shiftDate(today, 1)) };
+  }
+  if (range === "thisMonth") {
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const nextMonthStart = new Date(`${monthStart}T00:00:00.000Z`);
+    nextMonthStart.setUTCMonth(nextMonthStart.getUTCMonth() + 1);
+    return {
+      start: getDateStart(monthStart),
+      end: getDateStart(nextMonthStart.toISOString().slice(0, 10)),
+    };
+  }
+
+  const validFromDate = isValidDateInput(fromDate) ? fromDate : "";
+  const validToDate = isValidDateInput(toDate) ? toDate : "";
+  if (!validFromDate && !validToDate) return null;
+  if (validFromDate && validToDate && validFromDate > validToDate) return null;
+  return {
+    start: validFromDate ? getDateStart(validFromDate) : undefined,
+    end: validToDate ? getDateStart(shiftDate(validToDate, 1)) : undefined,
+  };
+}
 
 export const instant = false;
 
@@ -79,7 +150,9 @@ function LeadPagination({
       "assignee",
       "queryStatus",
       "market",
-      "serviceType",
+      "dateRange",
+      "fromDate",
+      "toDate",
     ] as const) {
       const value = params[key];
       if (value) query.set(key, value);
@@ -187,12 +260,13 @@ async function LeadsContent({
   if (!can(session.role, "leads.view")) redirect("/dashboard");
 
   const params = await searchParams;
+  const filterState = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) filterState.set(key, value);
+  }
   const search = params.q?.trim().slice(0, 100) ?? "";
   const parsedMarket = leadMarketSchema.safeParse(params.market);
-  const parsedServiceType = leadServiceTypeSchema.safeParse(params.serviceType);
-  let selectedMarket = parsedMarket.success ? parsedMarket.data : undefined;
-  const selectedServiceType = parsedServiceType.success ? parsedServiceType.data : undefined;
-  if (selectedServiceType && selectedMarket !== "DOMESTIC") selectedMarket = "INTERNATIONAL";
+  const selectedMarket = parsedMarket.success ? parsedMarket.data : undefined;
 
   const parsedAssignee = z.uuid().safeParse(params.assignee);
   const selectedAssignee = parsedAssignee.success
@@ -205,13 +279,25 @@ async function LeadsContent({
     (category) => category === params.category,
   );
   const selectedPriority = priorityEnum.enumValues.find((priority) => priority === params.priority);
+  const dateRanges = ["today", "yesterday", "last7days", "thisMonth", "custom"] as const;
+  const selectedDateRange = dateRanges.find((range) => range === params.dateRange) ?? "";
+  const selectedFromDate = isValidDateInput(params.fromDate) ? params.fromDate : "";
+  const selectedToDate = isValidDateInput(params.toDate) ? params.toDate : "";
   const queryStatuses = ["OPEN", "CLOSED", "NONE"] as const;
   const selectedQueryStatus = queryStatuses.find((status) => status === params.queryStatus);
-  const serviceFilter = selectedMarket === "INTERNATIONAL" ? selectedServiceType : undefined;
   const conditions = [isNull(leads.deletedAt)];
 
   if (selectedMarket) conditions.push(eq(leads.market, selectedMarket));
-  if (serviceFilter) conditions.push(eq(leads.serviceType, serviceFilter));
+  if (selectedDateRange) {
+    const dateBounds = getLeadDateBounds(
+      selectedDateRange,
+      selectedFromDate,
+      selectedToDate,
+      new Date(),
+    );
+    if (dateBounds?.start) conditions.push(gte(leads.createdAt, dateBounds.start));
+    if (dateBounds?.end) conditions.push(lt(leads.createdAt, dateBounds.end));
+  }
   if (search) {
     conditions.push(
       or(
@@ -356,14 +442,14 @@ async function LeadsContent({
       "priority",
       "assignee",
       "queryStatus",
+      "dateRange",
+      "fromDate",
+      "toDate",
     ] as const) {
       const value = params[key];
       if (value) query.set(key, value);
     }
     if (market) query.set("market", market);
-    if (market === "INTERNATIONAL" && serviceFilter) {
-      query.set("serviceType", serviceFilter);
-    }
     const queryString = query.toString();
     return queryString ? `/leads?${queryString}#lead-summary` : "/leads#lead-summary";
   };
@@ -378,7 +464,7 @@ async function LeadsContent({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage departments, lead owners, pipeline stages, and follow-ups.
+            Manage departments, user assigned, pipeline stages, and follow-ups.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -467,34 +553,27 @@ async function LeadsContent({
             </nav>
           </div>
 
-          <form
+          <LeadsFilterForm
+            key={filterState.toString()}
             action="/leads#lead-summary"
-            className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_repeat(6,minmax(120px,1fr))_auto_auto]"
-            role="search"
-            aria-label="Filter leads"
+            className="mt-4 grid grid-cols-2 gap-3 rounded-xl border bg-background/80 p-3 shadow-sm sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6"
           >
             {selectedMarket && <input type="hidden" name="market" value={selectedMarket} />}
             <input
               name="q"
               defaultValue={search}
               placeholder="Search name, phone, email"
-              className="col-span-2 h-9 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring sm:col-span-1"
+              className="col-span-2 h-10 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
             />
-            <select
-              name="serviceType"
-              defaultValue={serviceFilter ?? ""}
-              disabled={selectedMarket !== "INTERNATIONAL"}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm disabled:opacity-50"
-              aria-label="International service"
-            >
-              <option value="">All international services</option>
-              <option value="TRAVEL">Travel</option>
-              <option value="VISA">Visa</option>
-            </select>
+            <LeadDateFilter
+              selectedRange={selectedDateRange}
+              fromDate={selectedFromDate}
+              toDate={selectedToDate}
+            />
             <select
               name="category"
               defaultValue={selectedCategory ?? ""}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm"
+              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Lead category"
             >
               <option value="">All categories</option>
@@ -505,7 +584,7 @@ async function LeadsContent({
             <select
               name="status"
               defaultValue={selectedStatus ?? ""}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm"
+              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Pipeline stage"
             >
               <option value="">All stages</option>
@@ -518,7 +597,7 @@ async function LeadsContent({
             <select
               name="priority"
               defaultValue={selectedPriority ?? ""}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm"
+              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Lead priority"
             >
               <option value="">All priorities</option>
@@ -531,8 +610,8 @@ async function LeadsContent({
             <select
               name="assignee"
               defaultValue={selectedAssignee}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm"
-              aria-label="Lead owner"
+              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="User Assigned"
             >
               <option value="">All owners</option>
               <option value="unassigned">Unassigned</option>
@@ -545,7 +624,7 @@ async function LeadsContent({
             <select
               name="queryStatus"
               defaultValue={selectedQueryStatus ?? ""}
-              className="h-9 min-w-0 rounded-lg border bg-background px-2.5 text-sm"
+              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Query status"
             >
               <option value="">All queries</option>
@@ -555,7 +634,7 @@ async function LeadsContent({
             </select>
             <button
               type="submit"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Search className="h-4 w-4" />
               Apply
@@ -566,7 +645,9 @@ async function LeadsContent({
               selectedPriority ||
               selectedAssignee ||
               selectedQueryStatus ||
-              serviceFilter) && (
+              selectedDateRange ||
+              selectedFromDate ||
+              selectedToDate) && (
               <Link
                 href={
                   selectedMarket
@@ -578,7 +659,7 @@ async function LeadsContent({
                 Clear
               </Link>
             )}
-          </form>
+          </LeadsFilterForm>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
@@ -591,7 +672,7 @@ async function LeadsContent({
                 <th className="sticky top-0 z-20 min-w-[210px] bg-muted px-4 py-3 font-semibold">Email</th>
                 <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Department</th>
                 <th className="sticky top-0 z-20 min-w-[120px] bg-muted px-4 py-3 font-semibold">Category</th>
-                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Lead owner</th>
+                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">User Assigned</th>
                 <th className="sticky top-0 z-20 min-w-[200px] bg-muted px-4 py-3 font-semibold">Query</th>
                 <th className="sticky top-0 z-20 min-w-[190px] bg-muted px-4 py-3 font-semibold">Next follow-up</th>
                 <th className="sticky right-0 top-0 z-30 w-40 min-w-40 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4">Actions</th>

@@ -220,14 +220,14 @@ export function LeadEditDialog({
                     <div className="mb-3 flex items-center gap-2">
                       <UserRound className="h-4 w-4 text-primary" />
                       <div>
-                        <h3 className="text-sm font-semibold">Lead owner</h3>
+                        <h3 className="text-sm font-semibold">User Assigned</h3>
                         <p className="text-xs text-muted-foreground">Assign this lead to an active team member.</p>
                       </div>
                     </div>
                     <form action={assignLeadAction} className="flex flex-col gap-2 sm:flex-row">
                       <input type="hidden" name="leadId" value={leadId} />
                       <label className="sr-only" htmlFor={`edit-assignee-${leadId}`}>
-                        Lead owner
+                        User Assigned
                       </label>
                       <select
                         id={`edit-assignee-${leadId}`}
