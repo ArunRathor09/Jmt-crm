@@ -1,4 +1,5 @@
 import {
+  asc,
   and,
   desc,
   eq,
@@ -23,6 +24,7 @@ import {
   leadQueries,
   leadStatusEnum,
   leads,
+  packages,
   priorityEnum,
   users as usersTable,
 } from "@/src/db/schema";
@@ -45,6 +47,7 @@ type LeadPageQuery = {
   assignee?: string;
   queryStatus?: string;
   market?: string;
+  packageId?: string;
   dateRange?: string;
   fromDate?: string;
   toDate?: string;
@@ -150,6 +153,7 @@ function LeadPagination({
       "assignee",
       "queryStatus",
       "market",
+      "packageId",
       "dateRange",
       "fromDate",
       "toDate",
@@ -267,6 +271,8 @@ async function LeadsContent({
   const search = params.q?.trim().slice(0, 100) ?? "";
   const parsedMarket = leadMarketSchema.safeParse(params.market);
   const selectedMarket = parsedMarket.success ? parsedMarket.data : undefined;
+  const parsedPackageId = z.uuid().safeParse(params.packageId);
+  const selectedPackageId = parsedPackageId.success ? parsedPackageId.data : "";
 
   const parsedAssignee = z.uuid().safeParse(params.assignee);
   const selectedAssignee = parsedAssignee.success
@@ -288,6 +294,7 @@ async function LeadsContent({
   const conditions = [isNull(leads.deletedAt)];
 
   if (selectedMarket) conditions.push(eq(leads.market, selectedMarket));
+  if (selectedPackageId) conditions.push(eq(leads.packageId, selectedPackageId));
   if (selectedDateRange) {
     const dateBounds = getLeadDateBounds(
       selectedDateRange,
@@ -345,7 +352,7 @@ async function LeadsContent({
     );
   }
 
-  const [countResult, departmentCounts, activeUsers] = await Promise.all([
+  const [countResult, departmentCounts, activeUsers, packageOptions] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(leads)
@@ -363,6 +370,11 @@ async function LeadsContent({
       .from(usersTable)
       .where(and(eq(usersTable.active, true), isNull(usersTable.deletedAt)))
       .orderBy(usersTable.fullName),
+    db
+      .select({ id: packages.id, name: packages.name })
+      .from(packages)
+      .where(isNull(packages.deletedAt))
+      .orderBy(asc(packages.name)),
   ]);
   const totalLeads = countResult[0]?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalLeads / LEADS_PER_PAGE));
@@ -442,6 +454,7 @@ async function LeadsContent({
       "priority",
       "assignee",
       "queryStatus",
+      "packageId",
       "dateRange",
       "fromDate",
       "toDate",
@@ -514,7 +527,26 @@ async function LeadsContent({
                 </p>
               </div>
             </div>
-            <nav aria-label="Lead departments" className="flex flex-wrap items-center gap-1 rounded-xl border bg-background p-1">
+            <nav aria-label="Lead departments and package filter" className="flex flex-wrap items-center gap-1 rounded-xl border bg-background p-1">
+              <label className="sr-only" htmlFor="lead-package-filter">
+                Filter leads by assigned package
+              </label>
+              <select
+                id="lead-package-filter"
+                key={selectedPackageId}
+                form="leads-filter-form"
+                name="packageId"
+                defaultValue={selectedPackageId}
+                aria-label="Filter by assigned package"
+                className="h-8 max-w-48 rounded-lg border bg-card px-2.5 text-xs font-medium text-foreground shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">All packages</option>
+                {packageOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
               {[
                 {
                   label: "All leads",
@@ -647,6 +679,7 @@ async function LeadsContent({
                 selectedPriority ||
                 selectedAssignee ||
                 selectedQueryStatus ||
+                selectedPackageId ||
                 selectedDateRange ||
                 selectedFromDate ||
                 selectedToDate) && (

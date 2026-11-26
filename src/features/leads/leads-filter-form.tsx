@@ -29,6 +29,7 @@ export function LeadsFilterForm({
 
   return (
     <form
+      id="leads-filter-form"
       action={action}
       onSubmit={handleSubmit}
       className={`${className} transition-opacity ${isPending ? "pointer-events-none opacity-65" : ""}`}

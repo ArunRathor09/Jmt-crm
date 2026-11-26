@@ -56,6 +56,7 @@ export function AppShell({
         (pathname.startsWith(`${item.href}/`) && !pathname.startsWith("/leads/add"))
       : pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
+  const ActivePageIcon = activePage?.icon ?? LayoutDashboard;
   const matchingNavItems = visibleNavItems.filter((item) =>
     item.label.toLowerCase().includes(search.toLowerCase()),
   );
@@ -164,32 +165,6 @@ export function AppShell({
           </button>
         </div>
 
-        {role === "SUPER_ADMIN" && (
-          <div
-            role="group"
-            aria-label={`Signed in as ${userName}, Super Admin`}
-            title={collapsed ? userName : undefined}
-            className={`mx-3 mb-2 flex h-14 shrink-0 items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/45 px-2.5 shadow-sm ${
-              collapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            <div
-              aria-hidden="true"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/15"
-            >
-              {userInitials}
-            </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{userName}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/55">
-                  Super Admin
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
         <nav aria-label="Primary navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {!collapsed && (
             <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">
@@ -254,45 +229,56 @@ export function AppShell({
           >
             <Menu className="h-4 w-4" />
           </button>
-          <div className="hidden min-w-0 shrink-0 flex-col leading-tight lg:flex">
-            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              Workspace
+          <div className="hidden min-w-0 shrink-0 items-center gap-2.5 lg:flex">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
+              <ActivePageIcon className="h-4 w-4" />
             </span>
-            <span className="max-w-36 truncate text-sm font-semibold">
-              {activePage?.label ?? "CRM"}
-            </span>
+            <div className="min-w-0 leading-tight">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                JMT CRM
+              </p>
+              <p className="max-w-36 truncate text-sm font-semibold">
+                {activePage?.label ?? "Workspace"}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             data-command-trigger
             aria-label="Open page navigation"
             aria-keyshortcuts="Control+K Meta+K"
-            className="flex h-10 min-w-0 max-w-xl flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card/80 px-2.5 text-sm text-muted-foreground shadow-sm transition-all hover:border-primary/35 hover:bg-card hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
+            className="group flex h-10 min-w-0 max-w-2xl flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card/70 px-2.5 text-sm text-muted-foreground shadow-sm transition-all hover:border-primary/35 hover:bg-card hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
             onClick={openPalette}
           >
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-muted/80">
-              <Search className="h-3.5 w-3.5" />
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-muted/80 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+              <Search className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
-            <span className="truncate text-left">Jump to a page</span>
-            <kbd className="ml-auto hidden shrink-0 rounded-md border bg-muted px-1.5 py-0.5 font-mono text-[10px] sm:inline">
-              Ctrl K
-            </kbd>
+            <span className="truncate text-left">Search pages and navigate</span>
+            <span className="ml-auto hidden shrink-0 items-center gap-1.5 sm:flex">
+              <span className="text-[10px] text-muted-foreground/70">Quick access</span>
+              <kbd className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                Ctrl K
+              </kbd>
+            </span>
           </button>
           <ThemeToggle />
           <div
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-border/80 bg-card/80 p-1.5 shadow-sm"
+            role="group"
+            aria-label={`Signed in as ${userName}, ${role.replaceAll("_", " ")}`}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-border/80 bg-card/80 p-1.5 shadow-sm transition-colors hover:bg-card"
             title={userName}
           >
             <div
-              role="img"
-              aria-label={`Signed in as ${userName}`}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/15"
+              aria-hidden="true"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-primary/75 text-xs font-semibold text-primary-foreground ring-2 ring-background shadow-sm"
             >
               {userInitials}
             </div>
             <div className="hidden min-w-0 pr-2 sm:block">
-              <p className="max-w-36 truncate text-xs font-semibold">{userName}</p>
-              <p className="text-[10px] text-muted-foreground">{role.replaceAll("_", " ")}</p>
+              <p className="max-w-36 truncate text-xs font-semibold leading-4">{userName}</p>
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {role.replaceAll("_", " ")}
+              </p>
             </div>
           </div>
         </header>
