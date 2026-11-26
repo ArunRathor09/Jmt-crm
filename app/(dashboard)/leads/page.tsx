@@ -553,113 +553,116 @@ async function LeadsContent({
             </nav>
           </div>
 
-          <LeadsFilterForm
-            key={filterState.toString()}
-            action="/leads#lead-summary"
-            className="mt-4 grid grid-cols-2 gap-3 rounded-xl border bg-background/80 p-3 shadow-sm sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6"
-          >
-            {selectedMarket && <input type="hidden" name="market" value={selectedMarket} />}
-            <input
-              name="q"
-              defaultValue={search}
-              placeholder="Search name, phone, email"
-              className="col-span-2 h-10 min-w-0 rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
-            />
-            <LeadDateFilter
-              selectedRange={selectedDateRange}
-              fromDate={selectedFromDate}
-              toDate={selectedToDate}
-            />
-            <select
-              name="category"
-              defaultValue={selectedCategory ?? ""}
-              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Lead category"
+          <div className="-mx-3 mt-4 overflow-x-auto px-3 pb-2 sm:-mx-4 sm:px-4">
+            <LeadsFilterForm
+              key={filterState.toString()}
+              action="/leads#lead-summary"
+              className="flex w-max min-w-full flex-nowrap items-center gap-2 rounded-xl border bg-background/80 p-2 shadow-sm"
             >
-              <option value="">All categories</option>
-              <option value="TICKET">Ticket</option>
-              <option value="VISA">Visa</option>
-              <option value="HOLIDAY">Holiday</option>
-            </select>
-            <select
-              name="status"
-              defaultValue={selectedStatus ?? ""}
-              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Pipeline stage"
-            >
-              <option value="">All stages</option>
-              {leadStatusEnum.enumValues.map((status) => (
-                <option key={status} value={status}>
-                  {status.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
-            <select
-              name="priority"
-              defaultValue={selectedPriority ?? ""}
-              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Lead priority"
-            >
-              <option value="">All priorities</option>
-              {priorityEnum.enumValues.map((priority) => (
-                <option key={priority} value={priority}>
-                  {priority}
-                </option>
-              ))}
-            </select>
-            <select
-              name="assignee"
-              defaultValue={selectedAssignee}
-              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="User Assigned"
-            >
-              <option value="">All owners</option>
-              <option value="unassigned">Unassigned</option>
-              {activeUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.fullName}
-                </option>
-              ))}
-            </select>
-            <select
-              name="queryStatus"
-              defaultValue={selectedQueryStatus ?? ""}
-              className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Query status"
-            >
-              <option value="">All queries</option>
-              <option value="OPEN">Open queries</option>
-              <option value="CLOSED">Closed queries</option>
-              <option value="NONE">No query</option>
-            </select>
-            <button
-              type="submit"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <Search className="h-4 w-4" />
-              Apply
-            </button>
-            {(search ||
-              selectedStatus ||
-              selectedCategory ||
-              selectedPriority ||
-              selectedAssignee ||
-              selectedQueryStatus ||
-              selectedDateRange ||
-              selectedFromDate ||
-              selectedToDate) && (
-              <Link
-                href={
-                  selectedMarket
-                    ? `/leads?market=${selectedMarket}#lead-summary`
-                    : "/leads#lead-summary"
-                }
-                className="inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+              {selectedMarket && <input type="hidden" name="market" value={selectedMarket} />}
+              <input
+                name="q"
+                defaultValue={search}
+                placeholder="Search name, phone, email"
+                aria-label="Search leads"
+                className="h-10 w-[190px] shrink-0 rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring xl:w-[220px]"
+              />
+              <LeadDateFilter
+                selectedRange={selectedDateRange}
+                fromDate={selectedFromDate}
+                toDate={selectedToDate}
+              />
+              <select
+                name="category"
+                defaultValue={selectedCategory ?? ""}
+                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Lead category"
               >
-                Clear
-              </Link>
-            )}
-          </LeadsFilterForm>
+                <option value="">All categories</option>
+                <option value="TICKET">Ticket</option>
+                <option value="VISA">Visa</option>
+                <option value="HOLIDAY">Holiday</option>
+              </select>
+              <select
+                name="status"
+                defaultValue={selectedStatus ?? ""}
+                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Pipeline stage"
+              >
+                <option value="">All stages</option>
+                {leadStatusEnum.enumValues.map((status) => (
+                  <option key={status} value={status}>
+                    {status.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="priority"
+                defaultValue={selectedPriority ?? ""}
+                className="h-10 w-[115px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Lead priority"
+              >
+                <option value="">All priorities</option>
+                {priorityEnum.enumValues.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="assignee"
+                defaultValue={selectedAssignee}
+                className="h-10 w-[145px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="User Assigned"
+              >
+                <option value="">All owners</option>
+                <option value="unassigned">Unassigned</option>
+                {activeUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+              <select
+                name="queryStatus"
+                defaultValue={selectedQueryStatus ?? ""}
+                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Query status"
+              >
+                <option value="">All queries</option>
+                <option value="OPEN">Open queries</option>
+                <option value="CLOSED">Closed queries</option>
+                <option value="NONE">No query</option>
+              </select>
+              <button
+                type="submit"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Search className="h-4 w-4" />
+                Apply
+              </button>
+              {(search ||
+                selectedStatus ||
+                selectedCategory ||
+                selectedPriority ||
+                selectedAssignee ||
+                selectedQueryStatus ||
+                selectedDateRange ||
+                selectedFromDate ||
+                selectedToDate) && (
+                <Link
+                  href={
+                    selectedMarket
+                      ? `/leads?market=${selectedMarket}#lead-summary`
+                      : "/leads#lead-summary"
+                  }
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  Clear
+                </Link>
+              )}
+            </LeadsFilterForm>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">

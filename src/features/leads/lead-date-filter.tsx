@@ -15,6 +15,8 @@ export function LeadDateFilter({
   toDate: string;
 }) {
   const [range, setRange] = useState(selectedRange);
+  const [fromDateValue, setFromDateValue] = useState(fromDate);
+  const [toDateValue, setToDateValue] = useState(toDate);
 
   return (
     <>
@@ -34,7 +36,7 @@ export function LeadDateFilter({
             setRange(value);
           }
         }}
-        className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-10 w-[145px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Filter leads by date"
       >
         <option value="">All dates</option>
@@ -45,25 +47,29 @@ export function LeadDateFilter({
         <option value="custom">Custom dates</option>
       </select>
       {range === "custom" && (
-        <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
-          <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border bg-background px-3 text-xs font-medium text-muted-foreground shadow-sm">
+        <div className="flex w-[280px] shrink-0 items-center gap-2">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg border bg-background px-2 text-xs font-medium text-muted-foreground shadow-sm">
             From
             <input
               type="date"
               name="fromDate"
-              defaultValue={fromDate}
+              value={fromDateValue}
+              max={toDateValue || undefined}
+              onChange={(event) => setFromDateValue(event.target.value)}
               aria-label="From date"
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground focus-visible:outline-none"
+              className="w-full min-w-0 bg-transparent text-sm text-foreground focus-visible:outline-none"
             />
           </label>
-          <label className="flex h-10 min-w-0 items-center gap-2 rounded-lg border bg-background px-3 text-xs font-medium text-muted-foreground shadow-sm">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg border bg-background px-2 text-xs font-medium text-muted-foreground shadow-sm">
             To
             <input
               type="date"
               name="toDate"
-              defaultValue={toDate}
+              value={toDateValue}
+              min={fromDateValue || undefined}
+              onChange={(event) => setToDateValue(event.target.value)}
               aria-label="To date"
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground focus-visible:outline-none"
+              className="w-full min-w-0 bg-transparent text-sm text-foreground focus-visible:outline-none"
             />
           </label>
         </div>
