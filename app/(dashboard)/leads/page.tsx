@@ -25,6 +25,7 @@ import {
   users as usersTable,
 } from "@/src/db/schema";
 import { LeadAutoRefresh } from "@/src/features/leads/lead-auto-refresh";
+import { LeadDeleteMenu } from "@/src/features/leads/lead-delete-menu";
 import { LeadEditDialog } from "@/src/features/leads/lead-edit-dialog";
 import { formatDate } from "@/src/features/leads/format";
 import { leadMarketSchema, leadServiceTypeSchema } from "@/src/features/leads/schemas";
@@ -367,6 +368,7 @@ async function LeadsContent({
     return queryString ? `/leads?${queryString}#lead-summary` : "/leads#lead-summary";
   };
   const canEditLeads = can(session.role, "leads.edit");
+  const canDeleteLeads = session.role === "SUPER_ADMIN";
   const canScheduleFollowUp = canEditLeads || can(session.role, "tasks.manage");
 
   return (
@@ -592,7 +594,7 @@ async function LeadsContent({
                 <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Lead owner</th>
                 <th className="sticky top-0 z-20 min-w-[200px] bg-muted px-4 py-3 font-semibold">Query</th>
                 <th className="sticky top-0 z-20 min-w-[190px] bg-muted px-4 py-3 font-semibold">Next follow-up</th>
-                <th className="sticky right-0 top-0 z-30 w-28 min-w-28 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[180px] sm:min-w-[180px] sm:px-4">Actions</th>
+                <th className="sticky right-0 top-0 z-30 w-40 min-w-40 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -693,7 +695,7 @@ async function LeadsContent({
                         <span className="text-xs text-muted-foreground">Not scheduled</span>
                       )}
                     </td>
-                    <td className="sticky right-0 z-10 w-28 min-w-28 border-l bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[180px] sm:min-w-[180px] sm:px-3">
+                    <td className="sticky right-0 z-10 w-40 min-w-40 border-l bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[220px] sm:min-w-[220px] sm:px-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/leads/${lead.id}`}
@@ -726,6 +728,9 @@ async function LeadsContent({
                           canEdit={canEditLeads}
                           canScheduleFollowUp={canScheduleFollowUp}
                         />
+                        {canDeleteLeads && (
+                          <LeadDeleteMenu leadId={lead.id} leadName={lead.name} />
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -1,16 +1,18 @@
 "use server";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, exists, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
 import {
   followups,
+  customers,
   leadQueries,
   leadSources,
   leads,
   packages,
   priorityEnum,
+  tasks,
   users,
 } from "@/src/db/schema";
 import { can } from "@/src/lib/auth/rbac";
@@ -344,6 +346,86 @@ export async function updateLeadStatusAction(formData: FormData) {
 
   revalidatePath("/leads");
   revalidatePath(`/leads/${updatedLead.id}`);
+}
+
+export async function permanentlyDeleteLeadAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (session.role !== "SUPER_ADMIN") {
+    throw new Error("Only a super admin can permanently delete leads.");
+  }
+
+  const parsed = z
+    .object({
+      leadId: z.uuid(),
+      confirmName: z.string().trim().min(1).max(150),
+    })
+    .safeParse({
+      leadId: formData.get("leadId"),
+      confirmName: formData.get("confirmName"),
+    });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid lead deletion request.");
+  }
+
+  const [lead] = await db
+    .select({ id: leads.id, name: leads.name })
+    .from(leads)
+    .where(and(eq(leads.id, parsed.data.leadId), isNull(leads.deletedAt)))
+    .limit(1);
+  if (!lead) throw new Error("This lead was not found or is no longer active.");
+  if (parsed.data.confirmName !== lead.name) {
+    throw new Error("The lead name confirmation does not match.");
+  }
+
+  const activeLead = db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.id, lead.id),
+        eq(leads.name, lead.name),
+        isNull(leads.deletedAt),
+      ),
+    );
+  const [, , , deletedLeads] = await db.batch([
+    db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(
+        and(
+          eq(leads.id, lead.id),
+          eq(leads.name, lead.name),
+          isNull(leads.deletedAt),
+        ),
+      )
+      .for("update"),
+    db
+      .update(tasks)
+      .set({ leadId: null, updatedAt: new Date() })
+      .where(and(eq(tasks.leadId, lead.id), exists(activeLead))),
+    db
+      .update(customers)
+      .set({ sourceLeadId: null, updatedAt: new Date() })
+      .where(and(eq(customers.sourceLeadId, lead.id), exists(activeLead))),
+    db
+      .delete(leads)
+      .where(
+        and(
+          eq(leads.id, lead.id),
+          eq(leads.name, lead.name),
+          isNull(leads.deletedAt),
+        ),
+      )
+      .returning({ id: leads.id }),
+  ]);
+  if (deletedLeads.length === 0) {
+    throw new Error("This lead changed before it could be deleted. Refresh and try again.");
+  }
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${lead.id}`);
+  revalidatePath("/dashboard");
 }
 
 export async function assignLeadAction(formData: FormData) {
