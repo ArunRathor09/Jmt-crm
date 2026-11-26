@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowUpRight,
   BriefcaseBusiness,
   ChevronLeft,
   LayoutDashboard,
@@ -13,9 +12,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 import { logoutAction } from "@/src/features/auth/actions";
 import { can, type AuthRole } from "@/src/lib/auth/rbac";
@@ -37,10 +36,14 @@ export function AppShell({
   userName: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mobileOpenPath, setMobileOpenPath] = useState<string | null>(null);
+  const [paletteOpenPath, setPaletteOpenPath] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
+  const mobileOpen = mobileOpenPath === pathname;
+  const paletteOpen = paletteOpenPath === pathname;
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.href !== "/packages" || can(role, "packages.manage")) &&
@@ -49,6 +52,11 @@ export function AppShell({
   const matchingNavItems = visibleNavItems.filter((item) =>
     item.label.toLowerCase().includes(search.toLowerCase()),
   );
+  const openPalette = useCallback(() => {
+    setSearch("");
+    setActiveResultIndex(0);
+    setPaletteOpenPath(pathname);
+  }, [pathname]);
   const userInitials =
     userName
       .trim()
@@ -58,39 +66,51 @@ export function AppShell({
       .join("") || "U";
 
   useEffect(() => {
-    const openPalette = () => {
-      setSearch("");
-      setPaletteOpen(true);
-    };
     document.addEventListener("open-command-palette", openPalette);
     return () => document.removeEventListener("open-command-palette", openPalette);
-  }, []);
+  }, [openPalette]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setSearch("");
-        setPaletteOpen(true);
+        openPalette();
       }
       if (event.key === "Escape") {
-        setPaletteOpen(false);
-        setMobileOpen(false);
+        setPaletteOpenPath(null);
+        setMobileOpenPath(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openPalette]);
+
+  useEffect(() => {
+    const closeNavigationOverlays = () => {
+      setMobileOpenPath(null);
+      setPaletteOpenPath(null);
+    };
+    window.addEventListener("popstate", closeNavigationOverlays);
+    return () => window.removeEventListener("popstate", closeNavigationOverlays);
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      onClickCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest("a[href]")) {
+          setMobileOpenPath(null);
+          setPaletteOpenPath(null);
+        }
+      }}
+    >
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close navigation"
           aria-controls="primary-navigation"
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={() => setMobileOpenPath(null)}
         />
       )}
       <aside
@@ -118,7 +138,7 @@ export function AppShell({
           )}
           <button
             type="button"
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setMobileOpenPath(null)}
             className="ml-auto grid h-9 w-9 place-items-center rounded-lg lg:hidden"
             aria-label="Close sidebar"
           >
@@ -127,6 +147,11 @@ export function AppShell({
         </div>
 
         <nav aria-label="Primary navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          {!collapsed && (
+            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">
+              Workspace
+            </p>
+          )}
           {visibleNavItems.map((item) => {
             const active =
               item.href === "/leads"
@@ -138,18 +163,19 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => setMobileOpenPath(null)}
                 title={collapsed ? item.label : undefined}
+                aria-current={active ? "page" : undefined}
                 className={`group flex h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${
                   active
-                    ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm"
+                    ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm ring-1 ring-inset ring-sidebar-border"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
                 } ${collapsed ? "justify-center" : ""}`}
               >
                 <Icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-105" />
                 {!collapsed && <span>{item.label}</span>}
                 {!collapsed && active && (
-                  <ArrowUpRight aria-hidden="true" className="ml-auto h-3.5 w-3.5 opacity-70" />
+                  <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />
                 )}
               </Link>
             );
@@ -160,10 +186,11 @@ export function AppShell({
           <button
             type="button"
             onClick={() => void logoutAction()}
-            className={`mb-1 hidden h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive lg:flex ${
+            className={`mb-1 flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive ${
               collapsed ? "justify-center" : ""
             }`}
             aria-label="Sign out"
+            title={collapsed ? "Sign out" : undefined}
           >
             <LogOut className="h-4 w-4" />
             {!collapsed && "Sign out"}
@@ -175,6 +202,7 @@ export function AppShell({
               collapsed ? "justify-center" : ""
             }`}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
           >
             <ChevronLeft className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />
             {!collapsed && "Collapse"}
@@ -186,7 +214,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/90 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl lg:px-6">
           <button
             type="button"
-            onClick={() => setMobileOpen(true)}
+            onClick={() => setMobileOpenPath(pathname)}
             className="grid h-9 w-9 place-items-center rounded-lg border lg:hidden"
             aria-label="Open sidebar"
             aria-controls="primary-navigation"
@@ -198,8 +226,9 @@ export function AppShell({
             type="button"
             data-command-trigger
             aria-label="Open page navigation"
+            aria-keyshortcuts="Control+K Meta+K"
             className="flex h-10 max-w-md flex-1 items-center gap-2 rounded-xl border bg-card px-3 text-sm text-muted-foreground shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-            onClick={() => document.dispatchEvent(new CustomEvent("open-command-palette"))}
+            onClick={openPalette}
           >
             <Search className="h-4 w-4" />
             <span className="hidden sm:inline">Jump to a page</span>
@@ -226,7 +255,7 @@ export function AppShell({
 
       {paletteOpen && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/35 px-4 pt-[12vh] backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Page navigation">
-          <button type="button" aria-label="Close search" className="absolute inset-0" onClick={() => setPaletteOpen(false)} />
+          <button type="button" aria-label="Close search" className="absolute inset-0" onClick={() => setPaletteOpenPath(null)} />
           <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-2xl ring-1 ring-black/5">
             <div className="flex items-center gap-3 border-b px-4">
               <Search className="h-5 w-5 text-muted-foreground" />
@@ -234,35 +263,69 @@ export function AppShell({
                 autoFocus
                 aria-label="Search pages"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setActiveResultIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" && matchingNavItems.length > 0) {
+                    event.preventDefault();
+                    setActiveResultIndex((index) => (index + 1) % matchingNavItems.length);
+                  }
+                  if (event.key === "ArrowUp" && matchingNavItems.length > 0) {
+                    event.preventDefault();
+                    setActiveResultIndex(
+                      (index) => (index - 1 + matchingNavItems.length) % matchingNavItems.length,
+                    );
+                  }
+                  if (event.key === "Enter" && matchingNavItems[activeResultIndex]) {
+                    event.preventDefault();
+                    router.push(matchingNavItems[activeResultIndex].href);
+                    setPaletteOpenPath(null);
+                  }
+                }}
                 placeholder="Search available pages..."
-                className="h-14 flex-1 bg-transparent text-sm outline-none"
+                className="h-14 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
               />
               <kbd className="rounded border bg-muted px-2 py-1 text-[10px] text-muted-foreground">ESC</kbd>
             </div>
-            <div className="max-h-80 p-2">
+            <div className="max-h-80 overflow-y-auto p-2">
               {matchingNavItems.length === 0 ? (
                 <p className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No matching pages.
                 </p>
               ) : (
-                matchingNavItems.map((item) => {
+                matchingNavItems.map((item, index) => {
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setPaletteOpen(false)}
-                      className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm hover:bg-accent"
+                      onClick={() => setPaletteOpenPath(null)}
+                      onMouseMove={() => setActiveResultIndex(index)}
+                      aria-current={pathname === item.href ? "page" : undefined}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition-colors ${
+                        index === activeResultIndex
+                          ? "bg-accent text-accent-foreground"
+                          : "text-foreground hover:bg-accent"
+                      }`}
                     >
-                      <span className="grid h-9 w-9 place-items-center rounded-lg border bg-background">
+                      <span className="grid h-9 w-9 place-items-center rounded-lg border bg-background shadow-sm">
                         <Icon className="h-4 w-4" />
                       </span>
-                      <span>{item.label}</span>
+                      <span className="font-medium">{item.label}</span>
+                      {pathname === item.href && (
+                        <span className="ml-auto text-xs text-muted-foreground">Current page</span>
+                      )}
                     </Link>
                   );
                 })
               )}
+            </div>
+            <div className="flex items-center gap-4 border-t bg-muted/40 px-4 py-2.5 text-[10px] text-muted-foreground">
+              <span><kbd className="rounded border bg-background px-1 py-0.5 font-mono">↑</kbd> <kbd className="rounded border bg-background px-1 py-0.5 font-mono">↓</kbd> to navigate</span>
+              <span><kbd className="rounded border bg-background px-1 py-0.5 font-mono">Enter</kbd> to open</span>
+              <span className="ml-auto">JMT CRM</span>
             </div>
           </div>
         </div>
