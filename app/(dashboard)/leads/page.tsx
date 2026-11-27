@@ -495,7 +495,7 @@ async function LeadsContent({
       canDelete={canDeleteLeads}
       canExport={canExportLeads}
     >
-      <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-[360px] max-w-[1700px] flex-col gap-3 overflow-hidden">
+      <div className="mx-auto flex h-[calc(100dvh-6rem)] min-h-[360px] max-w-[1900px] flex-col gap-2 overflow-hidden sm:h-[calc(100dvh-7rem)] lg:h-[calc(100dvh-8rem)]">
         <LeadAutoRefresh />
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div>
@@ -529,10 +529,10 @@ async function LeadsContent({
 
         <section
           id="lead-summary"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-lg shadow-primary/[0.04]"
           aria-labelledby="lead-summary-heading"
         >
-        <div className="shrink-0 border-b bg-gradient-to-r from-accent/60 to-card p-3 sm:p-4">
+        <div className="shrink-0 border-b bg-gradient-to-r from-primary/[0.08] via-accent/30 to-card p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -545,26 +545,7 @@ async function LeadsContent({
                 </p>
               </div>
             </div>
-            <nav aria-label="Lead departments and package filter" className="flex flex-wrap items-center gap-1 rounded-xl border bg-background p-1">
-              <label className="sr-only" htmlFor="lead-package-filter">
-                Filter leads by assigned package
-              </label>
-              <select
-                id="lead-package-filter"
-                key={selectedPackageId}
-                form="leads-filter-form"
-                name="packageId"
-                defaultValue={selectedPackageId}
-                aria-label="Filter by assigned package"
-                className="h-8 max-w-48 rounded-lg border bg-card px-2.5 text-xs font-medium text-foreground shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">All packages</option>
-                {packageOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
+            <nav aria-label="Lead departments" className="flex flex-wrap items-center gap-1 rounded-xl border bg-background/80 p-1 shadow-sm">
               {[
                 {
                   label: "All leads",
@@ -603,29 +584,48 @@ async function LeadsContent({
             </nav>
           </div>
 
-          <div className="-mx-3 mt-4 overflow-x-auto px-3 pb-2 sm:-mx-4 sm:px-4">
+          <div className="mt-4">
             <LeadsFilterForm
               key={filterState.toString()}
               action="/leads#lead-summary"
-              className="flex w-max min-w-full flex-nowrap items-center gap-2 rounded-xl border bg-background/80 p-2 shadow-sm"
+              className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-gradient-to-br from-background via-background to-accent/15 p-2 shadow-sm"
             >
               {selectedMarket && <input type="hidden" name="market" value={selectedMarket} />}
-              <input
-                name="q"
-                defaultValue={search}
-                placeholder="Search name, phone, email"
-                aria-label="Search leads"
-                className="h-10 w-[190px] shrink-0 rounded-lg border bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring xl:w-[220px]"
-              />
+              <div className="relative min-w-[190px] flex-[2_1_220px]">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  name="q"
+                  defaultValue={search}
+                  placeholder="Search name, phone, email"
+                  aria-label="Search leads"
+                  className="h-10 w-full rounded-lg border bg-card px-3 pl-9 text-sm shadow-sm outline-none transition placeholder:text-muted-foreground/75 hover:border-primary/35 focus:border-primary focus:ring-2 focus:ring-ring"
+                />
+              </div>
               <LeadDateFilter
                 selectedRange={selectedDateRange}
                 fromDate={selectedFromDate}
                 toDate={selectedToDate}
               />
               <select
+                name="packageId"
+                defaultValue={selectedPackageId}
+                aria-label="Filter by package"
+                className="h-10 min-w-[140px] flex-[1_1_145px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">All packages</option>
+                {packageOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <select
                 name="category"
                 defaultValue={selectedCategory ?? ""}
-                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 min-w-[125px] flex-[1_1_135px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Lead category"
               >
                 <option value="">All categories</option>
@@ -636,7 +636,7 @@ async function LeadsContent({
               <select
                 name="status"
                 defaultValue={selectedStatus ?? ""}
-                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 min-w-[125px] flex-[1_1_135px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Pipeline stage"
               >
                 <option value="">All stages</option>
@@ -649,7 +649,7 @@ async function LeadsContent({
               <select
                 name="priority"
                 defaultValue={selectedPriority ?? ""}
-                className="h-10 w-[115px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 min-w-[110px] flex-[1_1_115px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Lead priority"
               >
                 <option value="">All priorities</option>
@@ -662,7 +662,7 @@ async function LeadsContent({
               <select
                 name="assignee"
                 defaultValue={selectedAssignee}
-                className="h-10 w-[145px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 min-w-[140px] flex-[1_1_145px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="User Assigned"
               >
                 <option value="">All owners</option>
@@ -676,7 +676,7 @@ async function LeadsContent({
               <select
                 name="queryStatus"
                 defaultValue={selectedQueryStatus ?? ""}
-                className="h-10 w-[130px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-10 min-w-[125px] flex-[1_1_135px] rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Query status"
               >
                 <option value="">All queries</option>
@@ -686,9 +686,9 @@ async function LeadsContent({
               </select>
               <button
                 type="submit"
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Search className="h-4 w-4" />
+                <Search aria-hidden="true" className="h-4 w-4" />
                 Apply
               </button>
               {(search ||
@@ -707,7 +707,7 @@ async function LeadsContent({
                       ? `/leads?market=${selectedMarket}#lead-summary`
                       : "/leads#lead-summary"
                   }
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border bg-card px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   Clear
                 </Link>
@@ -716,9 +716,9 @@ async function LeadsContent({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="isolate min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full min-w-[1450px] border-separate border-spacing-0 text-left text-sm">
-            <thead className="sticky top-0 z-20 bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+            <thead className="sticky top-0 z-20 bg-muted text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 {canSelectLeads && (
                   <th className="sticky left-0 top-0 z-30 w-11 min-w-11 border-r bg-muted px-3 py-3 text-center font-semibold">
@@ -757,16 +757,16 @@ async function LeadsContent({
                     : "Domestic";
 
                 return (
-                  <tr key={lead.id} className="group transition-colors hover:bg-muted/30">
+                  <tr key={lead.id} className="group transition-colors duration-150 hover:bg-accent/40">
                     {canSelectLeads && (
-                      <td className="sticky left-0 z-10 w-11 min-w-11 border-r bg-card px-3 py-3.5 text-center group-hover:bg-muted/30">
+                      <td className="sticky left-0 z-20 w-11 min-w-11 border-r bg-card px-3 py-3 text-center group-hover:bg-muted">
                         <LeadRowCheckbox leadId={lead.id} leadName={lead.name} />
                       </td>
                     )}
-                    <td className={`sticky z-10 w-14 min-w-14 border-r bg-card px-2 py-3.5 text-xs font-medium tabular-nums text-muted-foreground group-hover:bg-muted/30 sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>
+                    <td className={`sticky z-20 w-14 min-w-14 border-r bg-card px-2 py-3 text-xs font-medium tabular-nums text-muted-foreground group-hover:bg-muted sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>
                       {(page - 1) * LEADS_PER_PAGE + index + 1}
                     </td>
-                    <td className={`sticky z-10 w-[140px] min-w-[140px] border-r bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>
+                    <td className={`sticky z-20 w-[140px] min-w-[140px] border-r bg-card px-2 py-3 group-hover:bg-muted sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>
                       <Link
                         href={`/leads/${lead.id}`}
                         className="block truncate font-semibold text-foreground hover:text-primary"
@@ -840,7 +840,7 @@ async function LeadsContent({
                         <span className="text-xs text-muted-foreground">Not scheduled</span>
                       )}
                     </td>
-                    <td className="sticky right-0 z-10 w-40 min-w-40 border-l bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[220px] sm:min-w-[220px] sm:px-3">
+                    <td className="sticky right-0 z-20 w-40 min-w-40 border-l bg-card px-2 py-3 group-hover:bg-muted sm:w-[220px] sm:min-w-[220px] sm:px-3">
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/leads/${lead.id}`}

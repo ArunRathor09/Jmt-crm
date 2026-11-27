@@ -36,7 +36,7 @@ export function LeadDateFilter({
             setRange(value);
           }
         }}
-        className="h-10 w-[145px] shrink-0 rounded-lg border bg-background px-3 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-10 w-[145px] shrink-0 rounded-lg border bg-card px-3 text-sm shadow-sm transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Filter leads by date"
       >
         <option value="">All dates</option>
@@ -47,7 +47,7 @@ export function LeadDateFilter({
         <option value="custom">Custom dates</option>
       </select>
       {range === "custom" && (
-        <div className="flex w-[280px] shrink-0 items-center gap-2">
+        <div className="flex w-full min-w-[240px] max-w-[280px] flex-[1_1_280px] items-center gap-2">
           <label className="flex h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg border bg-background px-2 text-xs font-medium text-muted-foreground shadow-sm">
             From
             <input
