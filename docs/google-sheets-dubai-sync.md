@@ -5,7 +5,7 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
 ## Fields and sync rules
 
 - The tab name is `Dubai form 29/10/`.
-- The Apps Script scans the first 20 rows for a name and phone header. Supported phone headers include `phone_number`, `phone`, and `mobile_number`.
+- The Apps Script scans the first 20 rows for a name and phone header. It supports `full_name`, `name`, `lead_name`, `customer_name`, `contact_name`, or separate `first_name` / `last_name` columns. Supported phone headers include `phone_number`, `phone`, `phone_no`, `primary_phone`, `mobile_number`, `mobile`, `mobile_no`, `primary_mobile`, `contact_mobile`, `contact_number`, and `telephone`.
 - `full_name`, `phone_number`, `whatsapp_number`, `email`, `city`, trip purpose, budget, and `lead_status` populate the matching lead fields.
 - Budget values are interpreted as INR. All sheet columns are also retained in `sourceData`; `raw_payload` preserves the original row, including the original `lead_status` text.
 - Phone numbers with a country prefix are kept in E.164 form. A 10-digit local number defaults to `+91`. `created_time + form_id` is the stable row identity when available; legacy name-based references are recognized and upgraded during sync. Row number is never used as an identity.
@@ -39,4 +39,4 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
 6. Run `setupDubaiLeadSync` once and approve the requested permissions. This installs the edit trigger and one-minute change check.
 7. Run `syncAllDubaiLeads` once to import existing rows. Later edits sync automatically; rows updated by external tools are detected on the next one-minute check.
 
-Rows without a lead name are skipped. The Apps Script continues through every sheet batch before marking the execution as failed for any rejected rows, so later valid leads are still sent. Row-level errors are listed in the execution log. The webhook also rejects requests without the shared secret and limits batches to 100 rows and 512 KB.
+Rows without a lead name are skipped and listed in the execution log with their row numbers. The Apps Script continues through every sheet batch before marking the execution as failed for any rejected rows, so later valid leads are still sent. Row-level errors are listed in the execution log. The webhook also rejects requests without the shared secret and limits batches to 100 rows and 512 KB.

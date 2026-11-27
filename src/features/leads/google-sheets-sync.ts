@@ -146,15 +146,32 @@ function sheetStatus(value: string): LeadStatus {
 }
 
 function parseRow(values: Record<string, string>) {
-  const rawName = cellAt(values, "full_name", "name");
+  const rawName =
+    cellAt(
+      values,
+      "full_name",
+      "fullname",
+      "name",
+      "lead_name",
+      "customer_name",
+      "contact_name",
+    ) ||
+    [cellAt(values, "first_name"), cellAt(values, "last_name")]
+      .filter(Boolean)
+      .join(" ");
   const rawPhone = cellAt(
     values,
     "phone_number",
     "phone",
+    "phone_no",
+    "primary_phone",
     "mobile_number",
     "mobile",
+    "mobile_no",
+    "primary_mobile",
+    "contact_mobile",
     "contact_number",
-    "phone_no",
+    "telephone",
   );
   const phone = rawPhone ? normalizePhone(rawPhone) : undefined;
   const rawAlternatePhone = cellAt(

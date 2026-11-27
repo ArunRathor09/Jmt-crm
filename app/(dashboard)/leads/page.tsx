@@ -401,11 +401,12 @@ async function LeadsContent({
       assignedTo: leads.assignedTo,
       assignedToName: usersTable.fullName,
       createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
     })
     .from(leads)
     .leftJoin(usersTable, eq(leads.assignedTo, usersTable.id))
     .where(and(...conditions))
-    .orderBy(desc(leads.createdAt), desc(leads.id))
+    .orderBy(desc(leads.updatedAt), desc(leads.id))
     .limit(LEADS_PER_PAGE)
     .offset((page - 1) * LEADS_PER_PAGE);
 
@@ -718,23 +719,23 @@ async function LeadsContent({
 
         <div className="isolate min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full min-w-[1450px] border-separate border-spacing-0 text-left text-sm">
-            <thead className="sticky top-0 z-20 bg-muted text-[11px] uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 {canSelectLeads && (
-                  <th className="sticky left-0 top-0 z-30 w-11 min-w-11 border-r bg-muted px-3 py-3 text-center font-semibold">
+                  <th className="sticky left-0 top-0 z-40 w-11 min-w-11 border-r bg-muted px-3 py-3 text-center font-semibold">
                     <LeadSelectAllCheckbox />
                   </th>
                 )}
-                <th className={`sticky top-0 z-30 w-14 min-w-14 border-r bg-muted px-2 py-3 font-semibold sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>S.No</th>
-                <th className={`sticky top-0 z-30 w-[140px] min-w-[140px] border-r bg-muted px-2 py-3 font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>Lead name</th>
-                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Phone</th>
-                <th className="sticky top-0 z-20 min-w-[210px] bg-muted px-4 py-3 font-semibold">Email</th>
-                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Department</th>
-                <th className="sticky top-0 z-20 min-w-[120px] bg-muted px-4 py-3 font-semibold">Category</th>
-                <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">User Assigned</th>
-                <th className="sticky top-0 z-20 min-w-[200px] bg-muted px-4 py-3 font-semibold">Query</th>
-                <th className="sticky top-0 z-20 min-w-[190px] bg-muted px-4 py-3 font-semibold">Next follow-up</th>
-                <th className="sticky right-0 top-0 z-30 w-40 min-w-40 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4">Actions</th>
+                <th className={`sticky top-0 z-40 w-14 min-w-14 border-r bg-muted px-2 py-3 font-semibold sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>S.No</th>
+                <th className={`sticky top-0 z-40 w-[140px] min-w-[140px] border-r bg-muted px-2 py-3 font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>Lead name</th>
+                <th className="sticky top-0 z-30 min-w-[150px] bg-muted px-4 py-3 font-semibold">Phone</th>
+                <th className="sticky top-0 z-30 min-w-[210px] bg-muted px-4 py-3 font-semibold">Email</th>
+                <th className="sticky top-0 z-30 min-w-[150px] bg-muted px-4 py-3 font-semibold">Department</th>
+                <th className="sticky top-0 z-30 min-w-[120px] bg-muted px-4 py-3 font-semibold">Category</th>
+                <th className="sticky top-0 z-30 min-w-[150px] bg-muted px-4 py-3 font-semibold">User Assigned</th>
+                <th className="sticky top-0 z-30 min-w-[200px] bg-muted px-4 py-3 font-semibold">Query</th>
+                <th className="sticky top-0 z-30 min-w-[190px] bg-muted px-4 py-3 font-semibold">Next follow-up</th>
+                <th className="sticky right-0 top-0 z-40 w-40 min-w-40 border-l bg-muted px-2 py-3 text-right font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -755,6 +756,7 @@ async function LeadsContent({
                   lead.market === "INTERNATIONAL"
                     ? `International${lead.serviceType ? ` · ${lead.serviceType === "VISA" ? "Visa" : "Travel"}` : ""}`
                     : "Domestic";
+                const hasBeenUpdated = lead.updatedAt.getTime() > lead.createdAt.getTime();
 
                 return (
                   <tr key={lead.id} className="group transition-colors duration-150 hover:bg-accent/40">
@@ -774,7 +776,8 @@ async function LeadsContent({
                         {lead.name}
                       </Link>
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        Added {formatDate(lead.createdAt)}
+                        {hasBeenUpdated ? "Updated" : "Added"}{" "}
+                        {formatDate(hasBeenUpdated ? lead.updatedAt : lead.createdAt)}
                       </p>
                     </td>
                     <td className="px-4 py-3.5">

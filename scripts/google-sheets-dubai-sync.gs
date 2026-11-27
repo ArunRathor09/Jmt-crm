@@ -43,11 +43,10 @@ function onDubaiSheetEdit(event) {
   const values = sheet
     .getRange(firstRow, 1, lastRow - firstRow + 1, header.headers.length)
     .getDisplayValues();
-  const rows = values
-    .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
-    .filter((row) => row !== null);
+  const result = collectSyncRows_(header.headers, values, firstRow);
 
-  throwSyncErrors_(sendDubaiRows_(rows));
+  reportSkippedRows_(result.skippedRowNumbers);
+  throwSyncErrors_(sendDubaiRows_(result.rows));
 }
 
 function syncAllDubaiLeads() {
@@ -58,6 +57,7 @@ function syncAllDubaiLeads() {
   const header = findHeaderRow_(sheet);
   if (lastRow <= header.rowNumber) return;
   let errors = [];
+  let skippedRowNumbers = [];
 
   for (
     let firstRow = header.rowNumber + 1;
@@ -68,11 +68,11 @@ function syncAllDubaiLeads() {
     const values = sheet
       .getRange(firstRow, 1, rowCount, header.headers.length)
       .getDisplayValues();
-    const rows = values
-      .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
-      .filter((row) => row !== null);
-    if (rows.length > 0) errors = errors.concat(sendDubaiRows_(rows));
+    const result = collectSyncRows_(header.headers, values, firstRow);
+    if (result.rows.length > 0) errors = errors.concat(sendDubaiRows_(result.rows));
+    skippedRowNumbers = skippedRowNumbers.concat(result.skippedRowNumbers);
   }
+  reportSkippedRows_(skippedRowNumbers);
   throwSyncErrors_(errors);
 }
 
@@ -84,6 +84,7 @@ function syncChangedDubaiLeads() {
   const header = findHeaderRow_(sheet);
   if (lastRow <= header.rowNumber) return;
   let errors = [];
+  let skippedRowNumbers = [];
 
   for (
     let firstRow = header.rowNumber + 1;
@@ -94,11 +95,11 @@ function syncChangedDubaiLeads() {
     const values = sheet
       .getRange(firstRow, 1, rowCount, header.headers.length)
       .getDisplayValues();
-    const rows = values
-      .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
-      .filter((row) => row !== null);
-    if (rows.length > 0) errors = errors.concat(sendDubaiRows_(rows));
+    const result = collectSyncRows_(header.headers, values, firstRow);
+    if (result.rows.length > 0) errors = errors.concat(sendDubaiRows_(result.rows));
+    skippedRowNumbers = skippedRowNumbers.concat(result.skippedRowNumbers);
   }
+  reportSkippedRows_(skippedRowNumbers);
   throwSyncErrors_(errors);
 }
 
@@ -110,20 +111,80 @@ function findHeaderRow_(sheet) {
   }
 
   const candidates = sheet.getRange(1, 1, rowsToScan, columns).getDisplayValues();
+  const knownHeaders = new Set([
+    "fullname",
+    "name",
+    "leadname",
+    "customername",
+    "contactname",
+    "firstname",
+    "lastname",
+    "phonenumber",
+    "phone",
+    "phoneno",
+    "primaryphone",
+    "mobilenumber",
+    "mobile",
+    "mobileno",
+    "primarymobile",
+    "contactmobile",
+    "contactnumber",
+    "telephone",
+    "whatsappnumber",
+    "alternatephone",
+    "email",
+    "emailaddress",
+    "city",
+    "createdtime",
+    "formid",
+    "leadstatus",
+    "category",
+    "leadcategory",
+    "budget",
+    "whatisthepurposeofyourdubaitrip",
+    "whatisyourapproximatebudgetperperson",
+  ]);
+  let bestMatch = null;
+  let bestScore = -1;
   for (let index = 0; index < candidates.length; index += 1) {
     const headers = candidates[index];
     const normalized = headers.map(normalizeSheetHeader_);
     const hasName = normalized.some((value) =>
-      ["fullname", "name"].includes(value),
+      [
+        "fullname",
+        "name",
+        "leadname",
+        "customername",
+        "contactname",
+        "firstname",
+        "lastname",
+      ].includes(value),
     );
     const hasPhone = normalized.some((value) =>
-      ["phonenumber", "phone", "mobilenumber"].includes(value),
+      [
+        "phonenumber",
+        "phone",
+        "phoneno",
+        "primaryphone",
+        "mobilenumber",
+        "mobile",
+        "mobileno",
+        "primarymobile",
+        "contactmobile",
+        "contactnumber",
+        "telephone",
+      ].includes(value),
     );
     if (hasName && hasPhone) {
-      return { rowNumber: index + 1, headers };
+      const score = normalized.filter((value) => knownHeaders.has(value)).length;
+      if (score > bestScore) {
+        bestMatch = { rowNumber: index + 1, headers };
+        bestScore = score;
+      }
     }
   }
 
+  if (bestMatch) return bestMatch;
   throw new Error(
     `Could not find a header row with full_name and phone_number in the first ${HEADER_SCAN_LIMIT} rows.`,
   );
@@ -140,11 +201,67 @@ function toSyncRow_(headers, row, rowNumber) {
     if (name) values[name] = String(row[index] || "");
   });
   if (Object.values(values).every((value) => value.trim() === "")) return null;
-  const nameHeader = headers.find((header) =>
-    ["fullname", "name"].includes(normalizeSheetHeader_(header)),
-  );
-  if (!nameHeader || !values[String(nameHeader).trim()]?.trim()) return null;
+  const leadName = sheetLeadName_(headers, values);
+  if (!leadName) return null;
   return { rowNumber, values };
+}
+
+function sheetLeadName_(headers, values) {
+  const nameHeader = headers.find((header) =>
+    ["fullname", "name", "leadname", "customername", "contactname"].includes(
+      normalizeSheetHeader_(header),
+    ),
+  );
+  if (nameHeader && values[String(nameHeader).trim()]?.trim()) {
+    return values[String(nameHeader).trim()].trim();
+  }
+  const firstNameHeader = headers.find(
+    (header) => normalizeSheetHeader_(header) === "firstname",
+  );
+  const lastNameHeader = headers.find(
+    (header) => normalizeSheetHeader_(header) === "lastname",
+  );
+  return [
+    firstNameHeader ? values[String(firstNameHeader).trim()] : "",
+    lastNameHeader ? values[String(lastNameHeader).trim()] : "",
+  ]
+    .map((value) => (value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function collectSyncRows_(headers, values, firstRow) {
+  const rows = [];
+  const skippedRowNumbers = [];
+  values.forEach((row, index) => {
+    const rowNumber = firstRow + index;
+    const syncRow = toSyncRow_(headers, row, rowNumber);
+    if (syncRow) {
+      rows.push(syncRow);
+    } else if (row.some((value) => String(value || "").trim() !== "")) {
+      skippedRowNumbers.push(rowNumber);
+    }
+  });
+  return { rows, skippedRowNumbers };
+}
+
+function reportSkippedRows_(rowNumbers) {
+  const properties = PropertiesService.getScriptProperties();
+  const currentSignature = rowNumbers.join(",");
+  const previousSignature = properties.getProperty("JMT_CRM_LAST_SKIPPED_ROWS") || "";
+  if (currentSignature === previousSignature) return;
+
+  properties.setProperty("JMT_CRM_LAST_SKIPPED_ROWS", currentSignature);
+  if (rowNumbers.length === 0) {
+    if (previousSignature) console.log("Previously skipped sheet rows now have lead names.");
+    return;
+  }
+
+  const shownRows = rowNumbers.slice(0, 20).join(", ");
+  const remainder = rowNumbers.length > 20 ? ` and ${rowNumbers.length - 20} more` : "";
+  console.warn(
+    `Skipped ${rowNumbers.length} non-empty sheet row(s) without a recognized lead name: ${shownRows}${remainder}.`,
+  );
 }
 
 function throwSyncErrors_(errors) {
