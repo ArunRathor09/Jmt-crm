@@ -481,55 +481,56 @@ async function LeadsContent({
   const canScheduleFollowUp = canEditLeads || can(session.role, "tasks.manage");
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-[360px] max-w-[1700px] flex-col gap-3 overflow-hidden">
-      <LeadAutoRefresh />
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage departments, user assigned, pipeline stages, and follow-ups.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {can(session.role, "leads.create") && (
-            <>
-              <Link
-                href="/leads/add"
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                <Plus className="h-4 w-4" />
-                Add lead
-              </Link>
-              <Link
-                href="/leads/add#csv-import"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:bg-accent"
-              >
-                <Upload className="h-4 w-4" />
-                Import
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
+    <LeadBulkSelectionProvider
+      key={leadRows.map((lead) => lead.id).join(":")}
+      leadIds={leadRows.map((lead) => lead.id)}
+      rows={
+        canExportLeads
+          ? leadRows.map((lead) => ({
+              ...lead,
+              createdAt: formatDate(lead.createdAt),
+            }))
+          : []
+      }
+      canDelete={canDeleteLeads}
+      canExport={canExportLeads}
+    >
+      <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-[360px] max-w-[1700px] flex-col gap-3 overflow-hidden">
+        <LeadAutoRefresh />
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage departments, user assigned, pipeline stages, and follow-ups.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {can(session.role, "leads.create") && (
+              <>
+                <Link
+                  href="/leads/add"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add lead
+                </Link>
+                <Link
+                  href="/leads/add#csv-import"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </Link>
+              </>
+            )}
+            {canSelectLeads && <LeadBulkActions />}
+          </div>
+        </header>
 
-      <section
-        id="lead-summary"
-        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"
-        aria-labelledby="lead-summary-heading"
-      >
-        <LeadBulkSelectionProvider
-          key={leadRows.map((lead) => lead.id).join(":")}
-          leadIds={leadRows.map((lead) => lead.id)}
-          rows={
-            canExportLeads
-              ? leadRows.map((lead) => ({
-                  ...lead,
-                  createdAt: formatDate(lead.createdAt),
-                }))
-              : []
-          }
-          canDelete={canDeleteLeads}
-          canExport={canExportLeads}
+        <section
+          id="lead-summary"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"
+          aria-labelledby="lead-summary-heading"
         >
         <div className="shrink-0 border-b bg-gradient-to-r from-accent/60 to-card p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -715,7 +716,6 @@ async function LeadsContent({
           </div>
         </div>
 
-        {canSelectLeads && <LeadBulkActions />}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full min-w-[1450px] border-separate border-spacing-0 text-left text-sm">
             <thead className="sticky top-0 z-20 bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
@@ -895,8 +895,8 @@ async function LeadsContent({
           </table>
         </div>
         <LeadPagination page={page} totalPages={totalPages} totalRows={totalLeads} params={params} />
-        </LeadBulkSelectionProvider>
-      </section>
-    </div>
+        </section>
+      </div>
+    </LeadBulkSelectionProvider>
   );
 }

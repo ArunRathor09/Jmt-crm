@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/src/db";
 import { packages } from "@/src/db/schema";
 import { PackageCreateForm } from "@/src/features/packages/package-create-form";
+import { PackageRowActions } from "@/src/features/packages/package-row-actions";
 import { can } from "@/src/lib/auth/rbac";
 import { getSession } from "@/src/lib/auth/session";
 
@@ -46,7 +47,7 @@ export default async function PackagesPage() {
 
       <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div className="border-b px-5 py-4">
-          <h2 className="font-semibold">Available packages</h2>
+          <h2 className="font-semibold">Package catalog</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {packageRows.length} {packageRows.length === 1 ? "package" : "packages"} across all categories
           </p>
@@ -57,7 +58,7 @@ export default async function PackagesPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Package</th>
@@ -65,6 +66,7 @@ export default async function PackagesPage() {
                   <th className="px-5 py-3 font-medium">Price</th>
                   <th className="px-5 py-3 font-medium">Duration</th>
                   <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -88,9 +90,22 @@ export default async function PackagesPage() {
                       {item.durationDays ? `${item.durationDays} days` : "—"}
                     </td>
                     <td className="px-5 py-4">
-                      <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium">
-                        {item.status}
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          item.status === "ACTIVE"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {item.status === "ACTIVE" ? "Active" : "Inactive"}
                       </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <PackageRowActions
+                        packageId={item.id}
+                        packageName={item.name}
+                        status={item.status}
+                      />
                     </td>
                   </tr>
                 ))}

@@ -1,6 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -69,4 +70,55 @@ export async function createPackageAction(
   revalidatePath("/packages");
   revalidatePath("/leads");
   return { error: null, success: true };
+}
+
+const updatePackageStatusSchema = z.object({
+  packageId: z.uuid(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]),
+});
+
+export async function updatePackageStatusAction(packageId: string, status: string) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "packages.manage")) {
+    return { error: "You do not have permission to manage packages." };
+  }
+
+  const parsed = updatePackageStatusSchema.safeParse({ packageId, status });
+  if (!parsed.success) {
+    return { error: "Choose a valid package and status." };
+  }
+
+  const [updatedPackage] = await db
+    .update(packages)
+    .set({ status: parsed.data.status, updatedAt: new Date() })
+    .where(and(eq(packages.id, parsed.data.packageId), isNull(packages.deletedAt)))
+    .returning({ id: packages.id });
+  if (!updatedPackage) return { error: "This package was not found or was already deleted." };
+
+  revalidatePath("/packages");
+  revalidatePath("/leads");
+  return { error: null };
+}
+
+export async function deletePackageAction(packageId: string) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "packages.manage")) {
+    return { error: "You do not have permission to manage packages." };
+  }
+
+  const parsedId = z.uuid().safeParse(packageId);
+  if (!parsedId.success) return { error: "Choose a valid package to delete." };
+
+  const [deletedPackage] = await db
+    .update(packages)
+    .set({ status: "ARCHIVED", deletedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(packages.id, parsedId.data), isNull(packages.deletedAt)))
+    .returning({ id: packages.id });
+  if (!deletedPackage) return { error: "This package was not found or was already deleted." };
+
+  revalidatePath("/packages");
+  revalidatePath("/leads");
+  return { error: null };
 }

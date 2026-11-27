@@ -193,22 +193,13 @@ export function LeadBulkActions() {
   };
 
   return (
-    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b bg-background px-3 py-2 sm:px-5">
-      <p className="mr-auto text-xs text-muted-foreground" aria-live="polite">
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="text-xs text-muted-foreground" aria-live="polite">
         {error ? (
           <span className="text-destructive">{error}</span>
         ) : (
-          message || (
-            <>
-              {selectedIds.length > 0 ? (
-                <span className="font-medium text-foreground">
-                  {selectedIds.length} selected
-                </span>
-              ) : (
-                "Select leads on this page to export or delete"
-              )}
-            </>
-          )
+          message ||
+          (selectedIds.length > 0 ? `${selectedIds.length} selected` : null)
         )}
       </p>
       {canExport && (
@@ -216,7 +207,7 @@ export function LeadBulkActions() {
           type="button"
           onClick={exportSelected}
           disabled={selectedIds.length === 0}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border bg-card px-3 text-xs font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border bg-card px-3 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Download aria-hidden="true" className="h-3.5 w-3.5" />
           Export selected
@@ -227,7 +218,7 @@ export function LeadBulkActions() {
           type="button"
           onClick={deleteSelected}
           disabled={selectedIds.length === 0 || pending}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-destructive px-3 text-xs font-semibold text-white transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-destructive px-3 text-sm font-semibold text-white transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-45"
         >
           {pending ? (
             <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
