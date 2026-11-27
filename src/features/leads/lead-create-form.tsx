@@ -18,7 +18,7 @@ type Status = (typeof leadStatusValues)[number];
 
 const initialState: LeadActionState = { error: null, success: false };
 const fieldClassName =
-  "h-10 w-full rounded-lg border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-ring";
+  "h-11 w-full rounded-lg border bg-background px-3 text-sm font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-ring";
 const statuses: { value: Status; label: string }[] = [
   { value: "NEW", label: "New" },
   { value: "CONTACTED", label: "Contacted" },
@@ -49,7 +49,7 @@ export function LeadCreateForm({
 
   return (
     <form action={formAction} className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="border-b bg-muted/20 px-5 py-5 sm:px-7">
+      <div className="border-b bg-gradient-to-r from-accent/60 to-card px-5 py-5 sm:px-7">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
             <UserRound className="h-5 w-5" />
@@ -58,6 +58,9 @@ export function LeadCreateForm({
             <h2 className="font-semibold tracking-tight">Lead information</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Add contact details, qualify the trip, and set the next action.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Fields marked <span className="font-semibold text-destructive">*</span> are required.
             </p>
           </div>
         </div>
@@ -152,7 +155,14 @@ export function LeadCreateForm({
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <label className="grid gap-1.5 text-sm font-medium">
               Full name <span className="text-destructive">*</span>
-              <input name="name" required maxLength={150} className={fieldClassName} />
+              <input
+                name="name"
+                required
+                maxLength={150}
+                autoComplete="name"
+                placeholder="e.g. Aanya Sharma"
+                className={fieldClassName}
+              />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
               Company / organization
@@ -166,20 +176,42 @@ export function LeadCreateForm({
                 required
                 minLength={7}
                 maxLength={20}
+                autoComplete="tel"
+                placeholder="+91 98765 43210"
                 className={fieldClassName}
               />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
               WhatsApp number
-              <input name="alternatePhone" type="tel" maxLength={20} className={fieldClassName} />
+              <input
+                name="alternatePhone"
+                type="tel"
+                maxLength={20}
+                autoComplete="tel"
+                placeholder="Optional WhatsApp number"
+                className={fieldClassName}
+              />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
               Email
-              <input name="email" type="email" maxLength={255} className={fieldClassName} />
+              <input
+                name="email"
+                type="email"
+                maxLength={255}
+                autoComplete="email"
+                placeholder="name@example.com"
+                className={fieldClassName}
+              />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
               City
-              <input name="city" maxLength={100} className={fieldClassName} />
+              <input
+                name="city"
+                maxLength={100}
+                autoComplete="address-level2"
+                placeholder="City"
+                className={fieldClassName}
+              />
             </label>
             <label className="grid gap-1.5 text-sm font-medium">
               Price / budget (INR)

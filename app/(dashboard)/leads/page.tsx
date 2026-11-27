@@ -13,7 +13,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { ArrowRight, ClipboardList, Eye, Plus, Search, Upload, Users } from "lucide-react";
+import { ArrowRight, Eye, Plus, Search, Upload, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -29,6 +29,12 @@ import {
   users as usersTable,
 } from "@/src/db/schema";
 import { LeadAutoRefresh } from "@/src/features/leads/lead-auto-refresh";
+import {
+  LeadBulkActions,
+  LeadBulkSelectionProvider,
+  LeadRowCheckbox,
+  LeadSelectAllCheckbox,
+} from "@/src/features/leads/lead-bulk-selection";
 import { LeadDeleteMenu } from "@/src/features/leads/lead-delete-menu";
 import { LeadDateFilter, type LeadDateRange } from "@/src/features/leads/lead-date-filter";
 import { LeadEditDialog } from "@/src/features/leads/lead-edit-dialog";
@@ -385,6 +391,8 @@ async function LeadsContent({
       name: leads.name,
       phone: leads.phone,
       email: leads.email,
+      company: leads.company,
+      city: leads.city,
       market: leads.market,
       serviceType: leads.serviceType,
       status: leads.status,
@@ -467,7 +475,9 @@ async function LeadsContent({
     return queryString ? `/leads?${queryString}#lead-summary` : "/leads#lead-summary";
   };
   const canEditLeads = can(session.role, "leads.edit");
-  const canDeleteLeads = session.role === "SUPER_ADMIN";
+  const canDeleteLeads = can(session.role, "leads.delete");
+  const canExportLeads = can(session.role, "leads.export");
+  const canSelectLeads = canDeleteLeads || canExportLeads;
   const canScheduleFollowUp = canEditLeads || can(session.role, "tasks.manage");
 
   return (
@@ -481,13 +491,6 @@ async function LeadsContent({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="#lead-summary"
-            className="hidden h-10 items-center gap-2 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:bg-accent sm:inline-flex"
-          >
-            <ClipboardList className="h-4 w-4" />
-            Lead Summary
-          </Link>
           {can(session.role, "leads.create") && (
             <>
               <Link
@@ -514,6 +517,20 @@ async function LeadsContent({
         className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"
         aria-labelledby="lead-summary-heading"
       >
+        <LeadBulkSelectionProvider
+          key={leadRows.map((lead) => lead.id).join(":")}
+          leadIds={leadRows.map((lead) => lead.id)}
+          rows={
+            canExportLeads
+              ? leadRows.map((lead) => ({
+                  ...lead,
+                  createdAt: formatDate(lead.createdAt),
+                }))
+              : []
+          }
+          canDelete={canDeleteLeads}
+          canExport={canExportLeads}
+        >
         <div className="shrink-0 border-b bg-gradient-to-r from-accent/60 to-card p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -698,12 +715,18 @@ async function LeadsContent({
           </div>
         </div>
 
+        {canSelectLeads && <LeadBulkActions />}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <table className="w-full min-w-[1450px] border-separate border-spacing-0 text-left text-sm">
             <thead className="sticky top-0 z-20 bg-muted/95 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
               <tr>
-                <th className="sticky left-0 top-0 z-30 w-14 min-w-14 border-r bg-muted px-2 py-3 font-semibold sm:w-16 sm:min-w-16 sm:px-4">S.No</th>
-                <th className="sticky left-14 top-0 z-30 w-[140px] min-w-[140px] border-r bg-muted px-2 py-3 font-semibold sm:left-16 sm:w-[220px] sm:min-w-[220px] sm:px-4">Lead name</th>
+                {canSelectLeads && (
+                  <th className="sticky left-0 top-0 z-30 w-11 min-w-11 border-r bg-muted px-3 py-3 text-center font-semibold">
+                    <LeadSelectAllCheckbox />
+                  </th>
+                )}
+                <th className={`sticky top-0 z-30 w-14 min-w-14 border-r bg-muted px-2 py-3 font-semibold sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>S.No</th>
+                <th className={`sticky top-0 z-30 w-[140px] min-w-[140px] border-r bg-muted px-2 py-3 font-semibold sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>Lead name</th>
                 <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Phone</th>
                 <th className="sticky top-0 z-20 min-w-[210px] bg-muted px-4 py-3 font-semibold">Email</th>
                 <th className="sticky top-0 z-20 min-w-[150px] bg-muted px-4 py-3 font-semibold">Department</th>
@@ -735,10 +758,15 @@ async function LeadsContent({
 
                 return (
                   <tr key={lead.id} className="group transition-colors hover:bg-muted/30">
-                    <td className="sticky left-0 z-10 w-14 min-w-14 border-r bg-card px-2 py-3.5 text-xs font-medium tabular-nums text-muted-foreground group-hover:bg-muted/30 sm:w-16 sm:min-w-16 sm:px-4">
+                    {canSelectLeads && (
+                      <td className="sticky left-0 z-10 w-11 min-w-11 border-r bg-card px-3 py-3.5 text-center group-hover:bg-muted/30">
+                        <LeadRowCheckbox leadId={lead.id} leadName={lead.name} />
+                      </td>
+                    )}
+                    <td className={`sticky z-10 w-14 min-w-14 border-r bg-card px-2 py-3.5 text-xs font-medium tabular-nums text-muted-foreground group-hover:bg-muted/30 sm:w-16 sm:min-w-16 sm:px-4 ${canSelectLeads ? "left-11" : "left-0"}`}>
                       {(page - 1) * LEADS_PER_PAGE + index + 1}
                     </td>
-                    <td className="sticky left-14 z-10 w-[140px] min-w-[140px] border-r bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:left-16 sm:w-[220px] sm:min-w-[220px] sm:px-4">
+                    <td className={`sticky z-10 w-[140px] min-w-[140px] border-r bg-card px-2 py-3.5 group-hover:bg-muted/30 sm:w-[220px] sm:min-w-[220px] sm:px-4 ${canSelectLeads ? "left-[100px] sm:left-[108px]" : "left-14 sm:left-16"}`}>
                       <Link
                         href={`/leads/${lead.id}`}
                         className="block truncate font-semibold text-foreground hover:text-primary"
@@ -855,7 +883,7 @@ async function LeadsContent({
               })}
               {leadRows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-16 text-center">
+                  <td colSpan={10 + (canSelectLeads ? 1 : 0)} className="px-5 py-16 text-center">
                     <p className="font-medium">No leads found</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Adjust the filters or choose another department.
@@ -867,6 +895,7 @@ async function LeadsContent({
           </table>
         </div>
         <LeadPagination page={page} totalPages={totalPages} totalRows={totalLeads} params={params} />
+        </LeadBulkSelectionProvider>
       </section>
     </div>
   );

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, exists, isNull, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/src/db";
@@ -426,6 +426,70 @@ export async function permanentlyDeleteLeadAction(formData: FormData) {
   revalidatePath("/leads");
   revalidatePath(`/leads/${lead.id}`);
   revalidatePath("/dashboard");
+}
+
+export async function bulkDeleteLeadsAction(leadIds: string[]) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.delete")) {
+    return { error: "You do not have permission to delete leads.", deleted: 0 };
+  }
+
+  const parsed = z.array(z.uuid()).min(1).max(50).safeParse(leadIds);
+  if (!parsed.success) {
+    return { error: "Select between 1 and 50 valid leads.", deleted: 0 };
+  }
+  const uniqueIds = [...new Set(parsed.data)];
+  if (uniqueIds.length !== parsed.data.length) {
+    return { error: "The selection contains duplicate leads. Refresh and try again.", deleted: 0 };
+  }
+
+  const activeTaskLeads = db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.id, tasks.leadId),
+        inArray(leads.id, uniqueIds),
+        isNull(leads.deletedAt),
+      ),
+    );
+  const activeCustomerLeads = db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.id, customers.sourceLeadId),
+        inArray(leads.id, uniqueIds),
+        isNull(leads.deletedAt),
+      ),
+    );
+  const [, , , deletedLeads] = await db.batch([
+    db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(and(inArray(leads.id, uniqueIds), isNull(leads.deletedAt)))
+      .for("update"),
+    db
+      .update(tasks)
+      .set({ leadId: null, updatedAt: new Date() })
+      .where(and(inArray(tasks.leadId, uniqueIds), exists(activeTaskLeads))),
+    db
+      .update(customers)
+      .set({ sourceLeadId: null, updatedAt: new Date() })
+      .where(and(inArray(customers.sourceLeadId, uniqueIds), exists(activeCustomerLeads))),
+    db
+      .delete(leads)
+      .where(and(inArray(leads.id, uniqueIds), isNull(leads.deletedAt)))
+      .returning({ id: leads.id }),
+  ]);
+  if (deletedLeads.length === 0) {
+    return { error: "None of the selected leads are still active. Refresh and try again.", deleted: 0 };
+  }
+
+  revalidatePath("/leads");
+  revalidatePath("/dashboard");
+  return { error: null, deleted: deletedLeads.length };
 }
 
 export async function assignLeadAction(formData: FormData) {
