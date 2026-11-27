@@ -47,7 +47,7 @@ function onDubaiSheetEdit(event) {
     .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
     .filter((row) => row !== null);
 
-  sendDubaiRows_(rows);
+  throwSyncErrors_(sendDubaiRows_(rows));
 }
 
 function syncAllDubaiLeads() {
@@ -57,6 +57,7 @@ function syncAllDubaiLeads() {
   const lastRow = sheet.getLastRow();
   const header = findHeaderRow_(sheet);
   if (lastRow <= header.rowNumber) return;
+  let errors = [];
 
   for (
     let firstRow = header.rowNumber + 1;
@@ -70,8 +71,9 @@ function syncAllDubaiLeads() {
     const rows = values
       .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
       .filter((row) => row !== null);
-    if (rows.length > 0) sendDubaiRows_(rows);
+    if (rows.length > 0) errors = errors.concat(sendDubaiRows_(rows));
   }
+  throwSyncErrors_(errors);
 }
 
 function syncChangedDubaiLeads() {
@@ -81,6 +83,7 @@ function syncChangedDubaiLeads() {
   const lastRow = sheet.getLastRow();
   const header = findHeaderRow_(sheet);
   if (lastRow <= header.rowNumber) return;
+  let errors = [];
 
   for (
     let firstRow = header.rowNumber + 1;
@@ -94,8 +97,9 @@ function syncChangedDubaiLeads() {
     const rows = values
       .map((row, index) => toSyncRow_(header.headers, row, firstRow + index))
       .filter((row) => row !== null);
-    if (rows.length > 0) sendDubaiRows_(rows);
+    if (rows.length > 0) errors = errors.concat(sendDubaiRows_(rows));
   }
+  throwSyncErrors_(errors);
 }
 
 function findHeaderRow_(sheet) {
@@ -136,16 +140,29 @@ function toSyncRow_(headers, row, rowNumber) {
     if (name) values[name] = String(row[index] || "");
   });
   if (Object.values(values).every((value) => value.trim() === "")) return null;
+  const nameHeader = headers.find((header) =>
+    ["fullname", "name"].includes(normalizeSheetHeader_(header)),
+  );
+  if (!nameHeader || !values[String(nameHeader).trim()]?.trim()) return null;
   return { rowNumber, values };
 }
 
+function throwSyncErrors_(errors) {
+  if (errors.length > 0) {
+    throw new Error(
+      `${errors.length} CRM sync batch(es) had row errors. See the preceding execution log entries.`,
+    );
+  }
+}
+
 function sendDubaiRows_(rows) {
-  if (!rows.length) return;
+  if (!rows.length) return [];
 
   const properties = PropertiesService.getScriptProperties();
   const endpoint =
     properties.getProperty("JMT_CRM_WEBHOOK_URL") || DUBAI_CRM_WEBHOOK_URL;
   const secret = properties.getProperty("JMT_CRM_WEBHOOK_SECRET");
+  const errors = [];
   if (!secret) {
     throw new Error("Set JMT_CRM_WEBHOOK_SECRET in Script Properties.");
   }
@@ -167,11 +184,14 @@ function sendDubaiRows_(rows) {
 
     const result = JSON.parse(responseText);
     if (result.failed > 0) {
-      console.error(`CRM sync: ${result.failed} row(s) failed: ${JSON.stringify(result.errors)}`);
+      const message = `CRM sync: ${result.failed} row(s) failed: ${JSON.stringify(result.errors)}`;
+      console.error(message);
+      errors.push(message);
     } else {
       console.log(
         `CRM sync complete: ${result.created} created, ${result.updated} updated, ${result.unchanged} unchanged.`,
       );
     }
   }
+  return errors;
 }

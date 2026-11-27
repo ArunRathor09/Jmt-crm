@@ -5,11 +5,11 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
 ## Fields and sync rules
 
 - The tab name is `Dubai form 29/10/`.
-- The Apps Script scans the first 20 rows for the header row containing `full_name`/`name` and `phone_number`/`phone`.
+- The Apps Script scans the first 20 rows for a name and phone header. Supported phone headers include `phone_number`, `phone`, and `mobile_number`.
 - `full_name`, `phone_number`, `whatsapp_number`, `email`, `city`, trip purpose, budget, and `lead_status` populate the matching lead fields.
 - Budget values are interpreted as INR. All sheet columns are also retained in `sourceData`; `raw_payload` preserves the original row, including the original `lead_status` text.
-- Phone numbers with a country prefix are kept in E.164 form. A 10-digit local number defaults to `+91`. If the phone is blank, `created_time + full_name + form_id` identifies the row; row number is never used as an identity.
-- Existing CRM leads with the same normalized phone are updated. The sheet is the source of truth for status: matching CRM statuses are applied on every sync; blank or unknown values become `NEW`.
+- Phone numbers with a country prefix are kept in E.164 form. A 10-digit local number defaults to `+91`. `created_time + form_id` is the stable row identity when available; legacy name-based references are recognized and upgraded during sync. Row number is never used as an identity.
+- Existing CRM leads with the same normalized phone are updated. Mapped sheet fields, including blank values, are the source of truth and replace their CRM counterparts; blank optional fields clear the CRM value. Status is also sheet-owned; blank or unknown values become `NEW`.
 - Removing a row from the sheet does not delete its CRM lead.
 - An open Leads page refreshes to show synced changes within 15 seconds.
 
@@ -39,4 +39,4 @@ The Dubai Meta Ads sheet tab syncs into the CRM as `INTERNATIONAL` leads. Apps S
 6. Run `setupDubaiLeadSync` once and approve the requested permissions. This installs the edit trigger and one-minute change check.
 7. Run `syncAllDubaiLeads` once to import existing rows. Later edits sync automatically; rows updated by external tools are detected on the next one-minute check.
 
-The Apps Script execution log reports row-level errors. The webhook also rejects requests without the shared secret and limits batches to 100 rows and 512 KB.
+Rows without a lead name are skipped. The Apps Script continues through every sheet batch before marking the execution as failed for any rejected rows, so later valid leads are still sent. Row-level errors are listed in the execution log. The webhook also rejects requests without the shared secret and limits batches to 100 rows and 512 KB.

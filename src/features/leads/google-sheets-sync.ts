@@ -38,6 +38,7 @@ const leadProjection = {
   id: leads.id,
   name: leads.name,
   phone: leads.phone,
+  market: leads.market,
   alternatePhone: leads.alternatePhone,
   email: leads.email,
   city: leads.city,
@@ -51,7 +52,9 @@ const leadProjection = {
 
 type ExistingLead = {
   id: string;
+  name: string;
   phone: string | null;
+  market: string;
   alternatePhone: string | null;
   email: string | null;
   city: string | null;
@@ -119,17 +122,20 @@ function getExternalKeys(values: Record<string, string>, phone: string | undefin
 
   const createdAt = cellAt(values, "created_time");
   const formId = cellAt(values, "form_id");
-  if (!phone || (createdAt && formId)) {
-    if (!createdAt || !formId) {
-      if (!phone) {
-        throw new Error("A phone number or created_time, full_name, and form_id are required.");
-      }
-    } else {
-      const digest = createHash("sha256")
-        .update(`${createdAt}\n${name.trim().toLowerCase()}\n${formId}`)
-        .digest("hex");
-      keys.push(`fallback:${digest}`);
+  if (!createdAt || !formId) {
+    if (!phone) {
+      throw new Error("A phone number or created_time, full_name, and form_id are required.");
     }
+    return keys;
+  }
+
+  const identityValues = [
+    `${createdAt}\n${formId}`,
+    `${createdAt}\n${name.trim().toLowerCase()}\n${formId}`,
+  ];
+  for (const identity of identityValues) {
+    const digest = createHash("sha256").update(identity).digest("hex");
+    keys.push(`fallback:${digest}`);
   }
   return keys;
 }
@@ -141,9 +147,23 @@ function sheetStatus(value: string): LeadStatus {
 
 function parseRow(values: Record<string, string>) {
   const rawName = cellAt(values, "full_name", "name");
-  const rawPhone = cellAt(values, "phone_number", "phone");
+  const rawPhone = cellAt(
+    values,
+    "phone_number",
+    "phone",
+    "mobile_number",
+    "mobile",
+    "contact_number",
+    "phone_no",
+  );
   const phone = rawPhone ? normalizePhone(rawPhone) : undefined;
-  const rawAlternatePhone = cellAt(values, "whatsapp_number", "alternate_phone");
+  const rawAlternatePhone = cellAt(
+    values,
+    "whatsapp_number",
+    "alternate_phone",
+    "whatsapp",
+    "whatsapp_phone",
+  );
   const alternatePhone = rawAlternatePhone ? normalizePhone(rawAlternatePhone) : undefined;
   const normalizedPayload = Object.fromEntries(
     Object.entries(values)
@@ -284,21 +304,53 @@ async function updateLead(
     .update(leads)
     .set({
       name: lead.name,
-      phone: lead.phone ?? existing.phone,
-      alternatePhone: lead.alternatePhone ?? existing.alternatePhone,
-      email: lead.email ?? existing.email,
-      city: lead.city ?? existing.city,
-      description: lead.description ?? existing.description,
-      budget: lead.budget ?? existing.budget,
-      sourceData: { ...existing.sourceData, ...lead.sourceData },
+      phone: lead.phone ?? null,
+      alternatePhone: lead.alternatePhone ?? null,
+      email: lead.email ?? null,
+      city: lead.city ?? null,
+      description: lead.description ?? null,
+      budget: lead.budget ?? null,
+      sourceData: lead.sourceData,
       market: "INTERNATIONAL",
       status: lead.status,
-      category: lead.category ?? existing.category,
+      category: lead.category ?? null,
       updatedAt: new Date(),
     })
     .where(and(eq(leads.id, existing.id), isNull(leads.deletedAt)))
     .returning({ id: leads.id });
   if (!updated) throw new Error("The matching CRM lead is no longer active.");
+}
+
+function sourceDataMatches(
+  existing: Record<string, string> | null,
+  incoming: Record<string, string>,
+) {
+  const existingEntries = Object.entries(existing ?? {}).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  const incomingEntries = Object.entries(incoming).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return JSON.stringify(existingEntries) === JSON.stringify(incomingEntries);
+}
+
+function leadMatchesSheet(
+  existing: ExistingLead,
+  lead: ReturnType<typeof parseRow>["lead"],
+) {
+  return (
+    existing.name === lead.name &&
+    existing.phone === (lead.phone ?? null) &&
+    existing.alternatePhone === (lead.alternatePhone ?? null) &&
+    existing.email === (lead.email ?? null) &&
+    existing.city === (lead.city ?? null) &&
+    existing.description === (lead.description ?? null) &&
+    existing.budget === (lead.budget ?? null) &&
+    existing.status === lead.status &&
+    existing.category === (lead.category ?? null) &&
+    existing.market === "INTERNATIONAL" &&
+    sourceDataMatches(existing.sourceData, lead.sourceData)
+  );
 }
 
 async function getLeadById(id: string) {
@@ -316,7 +368,7 @@ export async function syncDubaiSheetRow(values: Record<string, string>) {
   if (!existing && lead.phone) existing = await findByPhone(lead.phone);
 
   if (existing) {
-    if (existing.payloadHash === payloadHash && existing.status === lead.status) {
+    if (existing.payloadHash === payloadHash && leadMatchesSheet(existing, lead)) {
       return "unchanged" as const;
     }
     await updateLead(existing, lead);
