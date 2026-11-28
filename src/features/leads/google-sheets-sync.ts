@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/src/db";
 import {
@@ -118,26 +118,39 @@ function parseBudget(value: string) {
 
 function getExternalKeys(values: Record<string, string>, phone: string | undefined, name: string) {
   const keys: string[] = [];
-  if (phone) keys.push(`phone:${phone}`);
+  const metaLeadId = cellAt(
+    values,
+    "lead_id",
+    "leadid",
+    "meta_lead_id",
+    "meta_leadid",
+    "facebook_lead_id",
+    "facebookleadid",
+    "id",
+  );
+  if (metaLeadId) {
+    const digest = createHash("sha256").update(metaLeadId).digest("hex");
+    keys.push(`meta-lead:${digest}`);
+  }
 
   const createdAt = cellAt(values, "created_time");
   const formId = cellAt(values, "form_id");
-  if (!createdAt || !formId) {
-    if (!phone) {
-      throw new Error("A phone number or created_time, full_name, and form_id are required.");
+  if (createdAt && formId) {
+    const identityValues = [
+      `${createdAt}\n${formId}`,
+      `${createdAt}\n${name.trim().toLowerCase()}\n${formId}`,
+    ];
+    for (const identity of identityValues) {
+      const digest = createHash("sha256").update(identity).digest("hex");
+      keys.push(`fallback:${digest}`);
     }
-    return keys;
   }
 
-  const identityValues = [
-    `${createdAt}\n${formId}`,
-    `${createdAt}\n${name.trim().toLowerCase()}\n${formId}`,
-  ];
-  for (const identity of identityValues) {
-    const digest = createHash("sha256").update(identity).digest("hex");
-    keys.push(`fallback:${digest}`);
+  if (phone) keys.push(`phone:${phone}`);
+  if (keys.length === 0) {
+    throw new Error("A Meta lead ID, phone number, or created_time and form_id are required.");
   }
-  return keys;
+  return [...new Set(keys)];
 }
 
 function sheetStatus(value: string): LeadStatus {
@@ -228,22 +241,25 @@ function parseRow(values: Record<string, string>) {
 
 async function findByExternalKeys(keys: string[]) {
   if (keys.length === 0) return undefined;
-  const [lead] = await db
-    .select({
-      ...leadProjection,
-      payloadHash: leadExternalReferences.payloadHash,
-    })
-    .from(leadExternalReferences)
-    .innerJoin(leads, eq(leadExternalReferences.leadId, leads.id))
-    .where(
-      and(
-        eq(leadExternalReferences.provider, provider),
-        inArray(leadExternalReferences.externalKey, keys),
-        isNull(leads.deletedAt),
-      ),
-    )
-    .limit(1);
-  return lead;
+  for (const externalKey of keys) {
+    const [lead] = await db
+      .select({
+        ...leadProjection,
+        payloadHash: leadExternalReferences.payloadHash,
+      })
+      .from(leadExternalReferences)
+      .innerJoin(leads, eq(leadExternalReferences.leadId, leads.id))
+      .where(
+        and(
+          eq(leadExternalReferences.provider, provider),
+          eq(leadExternalReferences.externalKey, externalKey),
+          isNull(leads.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (lead) return lead;
+  }
+  return undefined;
 }
 
 async function findByPhone(phone: string) {

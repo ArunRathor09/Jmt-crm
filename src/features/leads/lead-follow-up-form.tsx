@@ -126,7 +126,6 @@ export function LeadFollowUpForm({
           ))}
         </div>
       </section>
-
       <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
         Notes shared by all slots
         <textarea
