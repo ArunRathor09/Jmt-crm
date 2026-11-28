@@ -418,6 +418,7 @@ async function LeadsContent({
           .selectDistinctOn([followups.leadId], {
             leadId: followups.leadId,
             dueAt: followups.dueAt,
+            isOverdue: sql<boolean>`${followups.dueAt} < now()`,
           })
           .from(followups)
           .where(
@@ -427,11 +428,18 @@ async function LeadsContent({
               isNull(followups.deletedAt),
             ),
           )
-          .orderBy(followups.leadId, followups.dueAt);
-  const nextFollowUpByLead = new Map<string, Date>();
+          .orderBy(
+            followups.leadId,
+            sql`abs(extract(epoch from (${followups.dueAt} - now())))`,
+            followups.dueAt,
+          );
+  const nextFollowUpByLead = new Map<string, { dueAt: Date; isOverdue: boolean }>();
   for (const followup of upcomingFollowups) {
     if (followup.leadId && !nextFollowUpByLead.has(followup.leadId)) {
-      nextFollowUpByLead.set(followup.leadId, followup.dueAt);
+      nextFollowUpByLead.set(followup.leadId, {
+        dueAt: followup.dueAt,
+        isOverdue: followup.isOverdue,
+      });
     }
   }
 
@@ -838,7 +846,14 @@ async function LeadsContent({
                     </td>
                     <td className="px-4 py-3.5">
                       {nextFollowUp ? (
-                        <span className="font-medium">{formatDate(nextFollowUp)}</span>
+                        <div className="space-y-1">
+                          <span className="block font-medium">{formatDate(nextFollowUp.dueAt)}</span>
+                          {nextFollowUp.isOverdue && (
+                            <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+                              Overdue
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">Not scheduled</span>
                       )}

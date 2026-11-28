@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
-import { CalendarClock, LoaderCircle } from "lucide-react";
+import { CalendarClock, LoaderCircle, Plus, X } from "lucide-react";
 import {
   scheduleLeadFollowUpAction,
   type FollowUpScheduleState,
@@ -38,80 +39,124 @@ export function LeadFollowUpForm({
     scheduleLeadFollowUpAction,
     initialState,
   );
+  const [slotIds, setSlotIds] = useState([0]);
+  const [nextSlotId, setNextSlotId] = useState(1);
 
   return (
-    <form action={formAction} className="mt-2 grid min-w-[250px] grid-cols-[1fr_auto] gap-1.5">
+    <form action={formAction} className="mt-3 space-y-4">
       <input type="hidden" name="leadId" value={leadId} />
-      <label className="sr-only" htmlFor={`follow-up-type-${leadId}`}>
-        Follow-up type
-      </label>
-      <select
-        id={`follow-up-type-${leadId}`}
-        name="type"
-        defaultValue="CALL"
-        className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs"
-      >
-        {followUpTypes.map((type) => (
-          <option key={type.value} value={type.value}>
-            {type.label}
-          </option>
-        ))}
-      </select>
-      <label className="sr-only" htmlFor={`follow-up-priority-${leadId}`}>
-        Follow-up priority
-      </label>
-      <select
-        id={`follow-up-priority-${leadId}`}
-        name="priority"
-        defaultValue={priority}
-        className="h-9 rounded-md border bg-background px-2 text-xs"
-      >
-        {priorities.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <label className="sr-only" htmlFor={`follow-up-date-${leadId}`}>
-        Follow-up date and time
-      </label>
-      <input
-        id={`follow-up-date-${leadId}`}
-        type="datetime-local"
-        name="dueAt"
-        required
-        className="h-9 min-w-0 rounded-md border bg-background px-2 text-xs"
-      />
-      <label className="col-span-2 grid gap-1.5 text-xs font-medium text-muted-foreground">
-        Notes
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+          Contact method
+          <select
+            name="type"
+            defaultValue="CALL"
+            className="h-10 rounded-lg border bg-background px-3 text-sm text-foreground"
+          >
+            {followUpTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+          Priority
+          <select
+            name="priority"
+            defaultValue={priority}
+            className="h-10 rounded-lg border bg-background px-3 text-sm text-foreground"
+          >
+            {priorities.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <section className="rounded-xl border bg-muted/20 p-3 sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="text-sm font-semibold">Schedule time slots</h4>
+            <p className="text-xs text-muted-foreground">
+              Add multiple calls or reminders for this lead.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={slotIds.length >= 20}
+            onClick={() => {
+              setSlotIds((current) => [...current, nextSlotId]);
+              setNextSlotId((current) => current + 1);
+            }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs font-semibold transition-colors hover:border-primary/40 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+            Add time
+          </button>
+        </div>
+        <div className="space-y-2">
+          {slotIds.map((slotId, index) => (
+            <div key={slotId} className="flex items-center gap-2">
+              <label className="sr-only" htmlFor={`follow-up-date-${leadId}-${slotId}`}>
+                Follow-up time {index + 1}
+              </label>
+              <input
+                id={`follow-up-date-${leadId}-${slotId}`}
+                type="datetime-local"
+                name="dueAt"
+                required
+                className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm"
+              />
+              {slotIds.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={`Remove time slot ${index + 1}`}
+                  onClick={() =>
+                    setSlotIds((current) => current.filter((id) => id !== slotId))
+                  }
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-muted-foreground transition-colors hover:border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
+                >
+                  <X aria-hidden="true" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
+        Notes shared by all slots
         <textarea
           name="notes"
           rows={3}
           maxLength={2000}
-          placeholder="Add any useful context for this follow-up"
-          className="min-h-20 resize-y rounded-md border bg-background px-2.5 py-2 text-sm font-normal text-foreground"
+          placeholder="Add useful context for these follow-ups"
+          className="min-h-20 resize-y rounded-lg border bg-background px-3 py-2 text-sm font-normal text-foreground"
         />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="col-span-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? (
-          <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+          <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
         ) : (
-          <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
+          <CalendarClock aria-hidden="true" className="h-4 w-4" />
         )}
-        {pending ? "Saving" : "Schedule"}
+        {pending ? "Scheduling..." : `Schedule ${slotIds.length} ${slotIds.length === 1 ? "follow-up" : "follow-ups"}`}
       </button>
       {state.error && (
-        <p role="alert" className="col-span-2 text-xs text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {state.error}
         </p>
       )}
       {state.success && (
-        <p role="status" className="col-span-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-          Follow-up scheduled.
+        <p role="status" className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+          {slotIds.length === 1 ? "Follow-up scheduled." : "Follow-ups scheduled."}
         </p>
       )}
     </form>

@@ -58,7 +58,10 @@ const followUpTypes = ["CALL", "WHATSAPP", "EMAIL", "MEETING", "TASK"] as const;
 
 const scheduleFollowUpSchema = z.object({
   leadId: z.uuid(),
-  dueAt: z.string().trim().min(1, "Choose a follow-up date and time.").max(40),
+  dueAt: z
+    .array(z.string().trim().min(1, "Choose a follow-up date and time.").max(40))
+    .min(1, "Add at least one follow-up time.")
+    .max(20, "You can schedule up to 20 follow-up times at once."),
   type: z.enum(followUpTypes),
   priority: z.enum(priorityEnum.enumValues),
   notes: z.string().trim().max(2000, "Notes must be 2000 characters or fewer."),
@@ -268,7 +271,7 @@ export async function scheduleLeadFollowUpAction(
 
   const parsed = scheduleFollowUpSchema.safeParse({
     leadId: formData.get("leadId"),
-    dueAt: formData.get("dueAt"),
+    dueAt: formData.getAll("dueAt"),
     type: formData.get("type"),
     priority: formData.get("priority"),
     notes: formData.get("notes") ?? "",
@@ -280,12 +283,16 @@ export async function scheduleLeadFollowUpAction(
     };
   }
 
-  const dueAt = parseFollowUpDate(parsed.data.dueAt);
-  if (!dueAt) {
-    return { error: "Enter a valid follow-up date and time.", success: false };
+  const dueAtValues = parsed.data.dueAt.map(parseFollowUpDate);
+  if (!dueAtValues.every((dueAt): dueAt is Date => dueAt instanceof Date)) {
+    return { error: "Enter valid follow-up dates and times.", success: false };
   }
-  if (dueAt.getTime() <= Date.now()) {
-    return { error: "Choose a future follow-up date and time.", success: false };
+  const now = Date.now();
+  if (dueAtValues.some((dueAt) => dueAt.getTime() <= now)) {
+    return { error: "Choose future follow-up dates and times.", success: false };
+  }
+  if (new Set(dueAtValues.map((dueAt) => dueAt.getTime())).size !== dueAtValues.length) {
+    return { error: "Each follow-up time must be unique.", success: false };
   }
 
   const [lead] = await db
@@ -297,19 +304,61 @@ export async function scheduleLeadFollowUpAction(
     return { error: "This lead was not found or is no longer active.", success: false };
   }
 
-  await db.insert(followups).values({
-    leadId: lead.id,
-    assignedTo: session.userId,
-    type: parsed.data.type,
-    dueAt,
-    priority: parsed.data.priority,
-    outcomeNote: parsed.data.notes || null,
-    createdBy: session.userId,
-  });
+  await db.insert(followups).values(
+    dueAtValues.map((dueAt) => ({
+      leadId: lead.id,
+      assignedTo: session.userId,
+      type: parsed.data.type,
+      dueAt,
+      priority: parsed.data.priority,
+      outcomeNote: parsed.data.notes || null,
+      createdBy: session.userId,
+    })),
+  );
 
   revalidatePath("/leads");
   revalidatePath(`/leads/${lead.id}`);
+  revalidatePath("/follow-ups");
   return { error: null, success: true };
+}
+
+export async function completeLeadFollowUpAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "leads.edit") && !can(session.role, "tasks.manage")) {
+    throw new Error("You do not have permission to complete follow-ups.");
+  }
+
+  const parsed = z
+    .object({ followUpId: z.uuid() })
+    .safeParse({ followUpId: formData.get("followUpId") });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid follow-up.");
+  }
+
+  const [completedFollowUp] = await db
+    .update(followups)
+    .set({
+      status: "COMPLETED",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(followups.id, parsed.data.followUpId),
+        inArray(followups.status, ["PENDING", "RESCHEDULED"]),
+        isNull(followups.deletedAt),
+      ),
+    )
+    .returning({ leadId: followups.leadId });
+  if (!completedFollowUp) {
+    throw new Error("This follow-up was not found or is no longer open.");
+  }
+
+  revalidatePath("/follow-ups");
+  revalidatePath("/leads");
+  if (completedFollowUp.leadId) {
+    revalidatePath(`/leads/${completedFollowUp.leadId}`);
+  }
 }
 
 export async function updateLeadStatusAction(formData: FormData) {

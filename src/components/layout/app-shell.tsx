@@ -2,6 +2,7 @@
 
 import {
   BriefcaseBusiness,
+  CalendarClock,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -21,6 +22,7 @@ import { can, type AuthRole } from "@/src/lib/auth/rbac";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/follow-ups", label: "Follow-ups", icon: CalendarClock },
   { href: "/leads/add", label: "Add Leads", icon: UserPlus },
   { href: "/packages", label: "Packages", icon: BriefcaseBusiness },
 ];
